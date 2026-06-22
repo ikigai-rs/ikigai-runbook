@@ -23,6 +23,7 @@ use ikigai_core::{
 
 /// One runnable step within a demo: a button label, the REPL command it runs, and a
 /// one-line note on what to observe.
+#[derive(serde::Serialize)]
 struct Step {
     label: &'static str,
     cmd: &'static str,
@@ -30,6 +31,7 @@ struct Step {
 }
 
 /// A runbook page: an id (→ `urn:runbook:<id>`), a tab label, intro prose, and steps.
+#[derive(serde::Serialize)]
 struct Demo {
     id: &'static str,
     label: &'static str,
@@ -201,25 +203,25 @@ static DEMOS: &[Demo] = &[
 pub fn space() -> EndpointSpace {
     let mut space = EndpointSpace::new();
     for demo in DEMOS {
-        space =
-            space.bind(
-                Exact::new(format!("urn:runbook:{}", demo.id)),
-                FnEndpoint::new(
-                    format!("runbook-{}", demo.id),
-                    move |inv: &Invocation<'_>| render(demo, inv),
-                )
-                .with_description(
-                    Description::new(format!("runbook-{}", demo.id))
-                        .title(demo.label)
-                        .summary("A runbook page — guided, runnable steps.")
-                        .verb(Verb::Source)
-                        .verb(Verb::Meta)
-                        .input(ArgSpec::new("as").summary(
-                            "representation: text/html (default, htmx) or text/plain (TUI)",
-                        ))
-                        .output("text/html;charset=utf-8"),
-                ),
-            );
+        space = space.bind(
+            Exact::new(format!("urn:runbook:{}", demo.id)),
+            FnEndpoint::new(
+                format!("runbook-{}", demo.id),
+                move |inv: &Invocation<'_>| render(demo, inv),
+            )
+            .with_description(
+                Description::new(format!("runbook-{}", demo.id))
+                    .title(demo.label)
+                    .summary("A runbook page — guided, runnable steps.")
+                    .verb(Verb::Source)
+                    .verb(Verb::Meta)
+                    .input(ArgSpec::new("as").summary(
+                        "representation: text/html (default, htmx), text/plain, or \
+                             application/json (structured, for the TUI)",
+                    ))
+                    .output("text/html;charset=utf-8"),
+            ),
+        );
     }
     space
 }
@@ -228,7 +230,13 @@ pub fn space() -> EndpointSpace {
 /// HTML otherwise.
 fn render(demo: &Demo, inv: &Invocation<'_>) -> Result<Representation> {
     let as_type = inv.inline_str("as").unwrap_or("text/html");
-    if as_type.starts_with("text/plain") {
+    if as_type.starts_with("application/json") {
+        // Structured form: `{ id, label, intro, steps: [{ label, cmd, note }] }` — the
+        // TUI sources this to render the page and run a step by its number.
+        let json = serde_json::to_string(demo)
+            .map_err(|e| ikigai_core::Error::Endpoint(format!("runbook json: {e}")))?;
+        Ok(repr("application/json", json))
+    } else if as_type.starts_with("text/plain") {
         Ok(repr("text/plain", render_text(demo)))
     } else {
         Ok(repr("text/html", render_html(demo)))
