@@ -182,8 +182,9 @@ static DEMOS: &[Demo] = &[
             },
             Step {
                 label: "9 · fetch elsewhere → denied",
-                cmd: "source urn:httpGet url=https://example.com",
-                note: "refused by the capability before any request leaves — not a CORS error",
+                cmd: "source urn:httpGet url=https://w3id.org/people/bsletten",
+                note: "refused — w3id.org isn't in the grant; it resolves fine at full authority, \
+                       so the capability is the gate, not reachability",
             },
             Step {
                 label: "10 · cap reset",
