@@ -136,8 +136,9 @@ static DEMOS: &[Demo] = &[
         label: "ZeroTrust",
         intro: "The session starts at root authority, so the first write lands. Narrow \
                 the capability and watch a write get refused — while reads still resolve, \
-                and the jail refuses to escape its root even at full authority. Same \
-                enforcement as the native CLI, here in WebAssembly.",
+                and the jail refuses to escape its root even at full authority. The same \
+                model gates the network: grant one host and a fetch to anywhere else is \
+                refused before it leaves. Same enforcement as the native CLI, in WebAssembly.",
         steps: &[
             Step {
                 label: "1 · write a file",
@@ -166,6 +167,26 @@ static DEMOS: &[Demo] = &[
             },
             Step {
                 label: "6 · cap reset",
+                cmd: "cap reset",
+                note: "back to root identity",
+            },
+            Step {
+                label: "7 · grant one host",
+                cmd: "cap urn:cap:net:httpbin.org",
+                note: "hand an agent the web, narrowly — only httpbin.org",
+            },
+            Step {
+                label: "8 · fetch it → ok",
+                cmd: "source urn:httpGet url=https://httpbin.org/uuid",
+                note: "allowed — the URL's host is within the grant",
+            },
+            Step {
+                label: "9 · fetch elsewhere → denied",
+                cmd: "source urn:httpGet url=https://example.com",
+                note: "refused by the capability before any request leaves — not a CORS error",
+            },
+            Step {
+                label: "10 · cap reset",
                 cmd: "cap reset",
                 note: "back to root identity",
             },
