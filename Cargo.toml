@@ -1,0 +1,14 @@
+[package]
+name = "ikigai-runbook"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Brian Sletten <brian.sletten@gmail.com>"]
+description = "Interactive runbook for ikigai — guided, runnable demos as urn:runbook:* resources, rendered as htmx (HATEOAS) HTML in the browser or text in the TUI. One module, linked by both the CLI and the in-browser kernel."
+repository = "https://github.com/ikigai-rs/ikigai-runbook"
+homepage = "https://github.com/ikigai-rs/ikigai-runbook"
+keywords = ["ikigai", "roc", "htmx", "hypermedia", "runbook"]
+categories = ["web-programming"]
+
+[dependencies]
+ikigai-core = "0.1.19"
