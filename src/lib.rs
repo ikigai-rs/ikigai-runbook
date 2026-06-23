@@ -259,25 +259,57 @@ fn repr(media: &str, body: String) -> Representation {
     )
 }
 
-/// The htmx HATEOAS fragment: the tab strip (active tab marked) followed by the
-/// active demo's panel. Switching tabs `hx-get`s another `urn:runbook:*` into the
-/// `#runbook` container; running a step `hx-get`s its command into `#rb-out`. The
-/// host adapter maps `/k/<command>` → `engine.eval`. No client-side state.
-fn render_html(active: &Demo) -> String {
+/// Host-registered extra tabs `(id, label)`, appended to the strip after the built-in
+/// demos. Lets a host add a tab the shared module doesn't know about — e.g. the web
+/// demo's browser-only "Identity" tab, bound as `urn:runbook:identity`. Process-global,
+/// the same convention as the host toggles; the native CLI simply never registers any.
+fn extra_tabs() -> &'static std::sync::Mutex<Vec<(String, String)>> {
+    static TABS: std::sync::OnceLock<std::sync::Mutex<Vec<(String, String)>>> =
+        std::sync::OnceLock::new();
+    TABS.get_or_init(|| std::sync::Mutex::new(Vec::new()))
+}
+
+/// Register an extra tab so it appears in the runbook strip on every panel. The host
+/// also binds `urn:runbook:<id>`; that endpoint's `text/html` representation should lead
+/// with [`render_tab_strip`]`(<id>)` so the strip stays identical across tabs.
+pub fn add_tab(id: impl Into<String>, label: impl Into<String>) {
+    let id = id.into();
+    let mut tabs = extra_tabs().lock().expect("runbook tabs");
+    // Idempotent: a host may build its kernel more than once (the in-page singleton,
+    // the server, tests) — register the tab at most once.
+    if !tabs.iter().any(|(existing, _)| existing == &id) {
+        tabs.push((id, label.into()));
+    }
+}
+
+/// The htmx tab strip — the built-in demos plus any host [`add_tab`]s — with `active`
+/// marked `selected`. Public so a host's extra-tab endpoint renders the identical strip
+/// (HATEOAS: every tab carries the whole strip, so "which tab is active" lives in the
+/// returned HTML, not client state).
+pub fn render_tab_strip(active: &str) -> String {
     let mut tabs = String::from("<nav class=\"rb-tabs\" role=\"tablist\">");
-    for demo in DEMOS {
-        let selected = demo.id == active.id;
+    let builtin = DEMOS.iter().map(|d| (d.id, d.label));
+    let extra = extra_tabs().lock().expect("runbook tabs");
+    for (id, label) in builtin.chain(extra.iter().map(|(i, l)| (i.as_str(), l.as_str()))) {
+        let selected = id == active;
         tabs.push_str(&format!(
             "<button role=\"tab\" class=\"rb-tab{cls}\" aria-selected=\"{sel}\" \
              hx-get=\"/k/source urn:runbook:{id} as=text/html\" \
              hx-target=\"#runbook\" hx-swap=\"innerHTML\">{label}</button>",
             cls = if selected { " selected" } else { "" },
             sel = selected,
-            id = demo.id,
-            label = demo.label,
         ));
     }
     tabs.push_str("</nav>");
+    tabs
+}
+
+/// The htmx HATEOAS fragment: the tab strip (active tab marked) followed by the
+/// active demo's panel. Switching tabs `hx-get`s another `urn:runbook:*` into the
+/// `#runbook` container; running a step `hx-get`s its command into `#rb-out`. The
+/// host adapter maps `/k/<command>` → `engine.eval`. No client-side state.
+fn render_html(active: &Demo) -> String {
+    let tabs = render_tab_strip(active.id);
 
     let mut steps = String::from("<ol class=\"rb-steps\">");
     for step in active.steps {
