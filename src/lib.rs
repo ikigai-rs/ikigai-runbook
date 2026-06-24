@@ -195,6 +195,28 @@ static DEMOS: &[Demo] = &[
             },
         ],
     },
+    Demo {
+        id: "linkeddata",
+        label: "Linked Data",
+        intro: "Transreption rewrites RDF from one syntax to another — here to Turtle — parsed \
+                and re-serialized through the kernel. A result is only as cacheable as its \
+                source: the kernel's own `urn:kernel:catalog` (every bound endpoint described \
+                as RDF) is stable, so re-resolving the pipeline hits the cache; a live web fetch \
+                with no `Cache-Control` never does. Cacheability flows down the pipe — the \
+                transform inherits its source's. Run each twice and watch the tag.",
+        steps: &[
+            Step {
+                label: "catalog → Turtle",
+                cmd: "source urn:kernel:catalog | urn:rdf:transrept as=text/turtle",
+                note: "the kernel describes itself; cacheable — re-run shows [cached]",
+            },
+            Step {
+                label: "my FOAF → Turtle",
+                cmd: "source urn:httpGet url=https://w3id.org/people/bsletten | urn:rdf:transrept as=text/turtle",
+                note: "a live fetch with no Cache-Control → [uncacheable] every time",
+            },
+        ],
+    },
 ];
 
 /// The runbook space: binds `urn:runbook:<id>` for every [`Demo`]. Mount it in any
@@ -327,6 +349,10 @@ fn render_html(active: &Demo) -> String {
     format!(
         "{tabs}<section class=\"rb-panel\" role=\"tabpanel\">\
          <p class=\"rb-intro\">{intro}</p>{steps}\
+         <div class=\"rb-outbar\">\
+           <button class=\"rb-clear\" hx-get=\"/k/clear\" hx-target=\"#rb-out\" \
+             hx-swap=\"innerHTML\">clear output</button>\
+         </div>\
          <pre id=\"rb-out\" class=\"rb-out\" aria-live=\"polite\"></pre></section>",
         intro = active.intro,
     )
