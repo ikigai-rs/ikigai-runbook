@@ -217,6 +217,70 @@ static DEMOS: &[Demo] = &[
             },
         ],
     },
+    Demo {
+        id: "transrept",
+        label: "Transreption",
+        intro: "One resource, many representations. `urn:rdf:transrept` is a first-class \
+                ik:Transreptor — it declares the media types it converts between (its \
+                from/to matrix) and re-serializes the same graph into any of them. Here the \
+                kernel's own catalog goes out as N-Triples, RDF/XML, JSON-LD, and a \
+                human-readable HTML table — same triples, different syntax. Versioning a \
+                payload is choosing a representation, not a new identity.",
+        steps: &[
+            Step {
+                label: "→ N-Triples",
+                cmd: "source urn:kernel:catalog | urn:rdf:transrept as=application/n-triples",
+                note: "one fully-qualified triple per line",
+            },
+            Step {
+                label: "→ RDF/XML",
+                cmd: "source urn:kernel:catalog | urn:rdf:transrept as=application/rdf+xml",
+                note: "the same graph, XML syntax",
+            },
+            Step {
+                label: "→ JSON-LD",
+                cmd: "source urn:kernel:catalog | urn:rdf:transrept as=application/ld+json",
+                note: "RDF as idiomatic JSON",
+            },
+            Step {
+                label: "→ HTML table",
+                cmd: "source urn:kernel:catalog | urn:rdf:transrept as=text/html",
+                note: "the human view — subject / predicate / object",
+            },
+        ],
+    },
+    Demo {
+        id: "sniff",
+        label: "Sniff & dispatch",
+        intro: "Opaque bytes — a fetch with a missing Content-Type, a file, a pasted blob — \
+                carry no type. `urn:sniff` detects the concrete media type from the bytes; \
+                `urn:transrept:auto` then sniffs *and* routes to the matching transreptor, so \
+                you transrept without naming the input type. When nothing can reach the \
+                target it refuses cleanly, naming the sniffed type, rather than feeding bytes \
+                to the wrong parser.",
+        steps: &[
+            Step {
+                label: "what is this?",
+                cmd: "source urn:kernel:catalog | urn:sniff",
+                note: "classifies the opaque bytes → text/turtle",
+            },
+            Step {
+                label: "auto → HTML",
+                cmd: "source urn:kernel:catalog | urn:transrept:auto as=text/html",
+                note: "sniffed turtle, selected the RDF transreptor, ran it — no input type given",
+            },
+            Step {
+                label: "auto → RDF/XML",
+                cmd: "source urn:kernel:catalog | urn:transrept:auto as=application/rdf+xml",
+                note: "same dispatch, a different target representation",
+            },
+            Step {
+                label: "no path → refused",
+                cmd: "source urn:kernel:catalog | urn:transrept:auto as=application/pdf",
+                note: "nothing converts turtle → pdf, so it refuses (naming the sniffed type)",
+            },
+        ],
+    },
 ];
 
 /// The runbook space: binds `urn:runbook:<id>` for every [`Demo`]. Mount it in any
