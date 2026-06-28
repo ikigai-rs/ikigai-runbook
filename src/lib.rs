@@ -313,12 +313,19 @@ static DEMOS: &[Demo] = &[
                 label: "compact",
                 cmd: "source urn:kernel:catalog | urn:rdf:transrept as=application/ld+json \
                       | urn:jsonld:expand \
-                      | urn:jsonld:compact context=\"{\\\"@context\\\":{\\\"@vocab\\\":\\\"https://ikigai-rs.dev/ns#\\\"}}\"",
-                note: "shorten the expanded graph against an inline @vocab context",
+                      | urn:jsonld:compact context=urn:data:ik-context",
+                note: "shorten the expanded graph against a context — itself a resource",
             },
         ],
     },
 ];
+
+/// A JSON-LD context for the ikigai namespace, served as `urn:data:ik-context` — the
+/// resource the JSON-LD demo's `compact` step compacts against. `@vocab` maps the default
+/// namespace so ikigai properties compact back to bare terms; that the context shaping a
+/// compaction is itself an addressable resource is the trust-boundary egress-filter framing.
+const IK_CONTEXT: &str =
+    r#"{"@context":{"@vocab":"https://ikigai-rs.dev/ns#","ik":"https://ikigai-rs.dev/ns#"}}"#;
 
 /// The runbook space: binds `urn:runbook:<id>` for every [`Demo`]. Mount it in any
 /// kernel's root (the CLI's embedded space, the in-browser kernel) and the whole
@@ -346,6 +353,26 @@ pub fn space() -> EndpointSpace {
             ),
         );
     }
+    // The JSON-LD demo's `compact` step compacts against this context by IRI — the context
+    // is itself a resource (urn:jsonld:compact sources it). Bound here so the demo runs
+    // identically in both frontends with no host-specific data.
+    space = space.bind(
+        Exact::new("urn:data:ik-context"),
+        FnEndpoint::new("ik-context", |_inv: &Invocation<'_>| {
+            Ok(repr("application/ld+json", IK_CONTEXT.to_string()).cacheable())
+        })
+        .with_description(
+            Description::new("ik-context")
+                .title("ikigai JSON-LD context")
+                .summary(
+                    "A JSON-LD context mapping the ikigai namespace — the resource the \
+                     JSON-LD demo's compact step compacts against.",
+                )
+                .verb(Verb::Source)
+                .verb(Verb::Meta)
+                .output("application/ld+json"),
+        ),
+    );
     space
 }
 

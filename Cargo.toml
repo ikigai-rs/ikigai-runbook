@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.1.5"  # adds the "JSON-LD" demo tab (expand/flatten/compact) + urn:data:ik-context
+version = "0.1.6"  # JSON-LD compact step uses context=urn:data:ik-context (context as a resource)
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
