@@ -318,6 +318,40 @@ static DEMOS: &[Demo] = &[
             },
         ],
     },
+    Demo {
+        id: "selection",
+        label: "Selection",
+        intro: "Endpoints declare the RDF *type* each input needs. `urn:kernel:actions \
+                types=…` then answers \"given entities of these types, what can I do?\" — it \
+                returns exactly the endpoints whose required typed inputs are all satisfied. \
+                Tool-selection done by the kernel: a deterministic query over the catalog, \
+                not a guess (an agent would let an LLM disambiguate only what's left). Three \
+                toy actions are mounted — **greet** needs a Person, **geocode** needs a \
+                PostalAddress, **mail** needs both.",
+        steps: &[
+            Step {
+                label: "have a Person",
+                cmd: "source urn:kernel:actions types=https://schema.org/Person",
+                note: "only actions whose required typed inputs are all satisfied → greet",
+            },
+            Step {
+                label: "have an Address",
+                cmd: "source urn:kernel:actions types=https://schema.org/PostalAddress",
+                note: "→ geocode (mail still needs a Person too)",
+            },
+            Step {
+                label: "have both",
+                cmd: "source urn:kernel:actions \
+                      types=https://schema.org/Person,https://schema.org/PostalAddress",
+                note: "mail unlocks as well — more types, more affordances",
+            },
+            Step {
+                label: "run a selected action",
+                cmd: "source urn:action:greet who=Ada",
+                note: "the type is metadata for selection; invoke the action like any endpoint",
+            },
+        ],
+    },
 ];
 
 /// A JSON-LD context for the ikigai namespace, served as `urn:data:ik-context` — the
@@ -373,7 +407,87 @@ pub fn space() -> EndpointSpace {
                 .output("application/ld+json"),
         ),
     );
+    // Toy typed "action" endpoints for the Selection demo. Each declares the RDF class its
+    // input needs (`ik:class`), so `urn:kernel:actions` can match them by type — "given these
+    // entities, what can I do?". The class is selection metadata; invoking just uses the
+    // string value. greet needs a Person, geocode a PostalAddress, mail needs both.
+    space = space
+        .bind(
+            Exact::new("urn:action:greet"),
+            FnEndpoint::new("action-greet", |inv: &Invocation<'_>| {
+                Ok(repr(
+                    "text/plain",
+                    format!("Hello, {}!", inv.inline_str("who").unwrap_or("friend")),
+                ))
+            })
+            .with_description(action_card(
+                "action-greet",
+                "Greet a person",
+                "Greet someone — needs a Person.",
+                &[("who", "https://schema.org/Person", "the person to greet")],
+            )),
+        )
+        .bind(
+            Exact::new("urn:action:geocode"),
+            FnEndpoint::new("action-geocode", |inv: &Invocation<'_>| {
+                Ok(repr(
+                    "text/plain",
+                    format!("Geocoded: {}", inv.inline_str("address").unwrap_or("?")),
+                ))
+            })
+            .with_description(action_card(
+                "action-geocode",
+                "Geocode an address",
+                "Resolve a postal address to coordinates — needs a PostalAddress.",
+                &[(
+                    "address",
+                    "https://schema.org/PostalAddress",
+                    "the address to geocode",
+                )],
+            )),
+        )
+        .bind(
+            Exact::new("urn:action:mail"),
+            FnEndpoint::new("action-mail", |inv: &Invocation<'_>| {
+                Ok(repr(
+                    "text/plain",
+                    format!(
+                        "Mailed {} at {}",
+                        inv.inline_str("to").unwrap_or("?"),
+                        inv.inline_str("at").unwrap_or("?")
+                    ),
+                ))
+            })
+            .with_description(action_card(
+                "action-mail",
+                "Mail a person",
+                "Post a letter — needs both a Person and a PostalAddress.",
+                &[
+                    ("to", "https://schema.org/Person", "the recipient"),
+                    (
+                        "at",
+                        "https://schema.org/PostalAddress",
+                        "the delivery address",
+                    ),
+                ],
+            )),
+        );
     space
+}
+
+/// Build an action endpoint's self-description: a Source/Meta endpoint whose every input is
+/// a *required, typed* argument (`ik:class`), so `urn:kernel:actions` matches it by type.
+fn action_card(id: &str, title: &str, summary: &str, inputs: &[(&str, &str, &str)]) -> Description {
+    let mut d = Description::new(id.to_string())
+        .title(title.to_string())
+        .summary(summary.to_string())
+        .verb(Verb::Source)
+        .verb(Verb::Meta)
+        .output("text/plain;charset=utf-8");
+    for (name, class, summary) in inputs {
+        d = d.input(ArgSpec::new(*name).class(*class).summary(*summary));
+    }
+    d
 }
 
 /// Render `demo` per the requested `as` type — `text/plain` for the terminal, htmx
