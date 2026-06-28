@@ -281,6 +281,43 @@ static DEMOS: &[Demo] = &[
             },
         ],
     },
+    Demo {
+        id: "jsonld",
+        label: "JSON-LD",
+        intro: "JSON-LD is RDF that reads as ordinary JSON. The same catalog graph runs \
+                through three operators — each a lazily-loaded `urn:jsonld:*` module \
+                endpoint. **expand** drops the context and writes every property as a full \
+                IRI; **flatten** hoists every node to the top level, keyed by `@id`; \
+                **compact** shortens an expanded graph against a context (`@vocab` here maps \
+                the ikigai namespace, so properties come back as bare terms) — the seed of \
+                the trust-boundary egress filter.",
+        steps: &[
+            Step {
+                label: "→ JSON-LD",
+                cmd: "source urn:kernel:catalog | urn:rdf:transrept as=application/ld+json",
+                note: "the catalog graph as idiomatic JSON-LD",
+            },
+            Step {
+                label: "expand",
+                cmd: "source urn:kernel:catalog | urn:rdf:transrept as=application/ld+json \
+                      | urn:jsonld:expand",
+                note: "no context — every property becomes a full IRI",
+            },
+            Step {
+                label: "flatten",
+                cmd: "source urn:kernel:catalog | urn:rdf:transrept as=application/ld+json \
+                      | urn:jsonld:flatten",
+                note: "every node hoisted to the top level, keyed by @id",
+            },
+            Step {
+                label: "compact",
+                cmd: "source urn:kernel:catalog | urn:rdf:transrept as=application/ld+json \
+                      | urn:jsonld:expand \
+                      | urn:jsonld:compact context=\"{\\\"@context\\\":{\\\"@vocab\\\":\\\"https://ikigai-rs.dev/ns#\\\"}}\"",
+                note: "shorten the expanded graph against an inline @vocab context",
+            },
+        ],
+    },
 ];
 
 /// The runbook space: binds `urn:runbook:<id>` for every [`Demo`]. Mount it in any
