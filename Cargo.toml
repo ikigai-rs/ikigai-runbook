@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.1.6"  # JSON-LD compact step uses context=urn:data:ik-context (context as a resource)
+version = "0.1.7"  # Selection demo tab: typed urn:action:* endpoints + urn:kernel:actions
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
@@ -11,7 +11,7 @@ keywords = ["ikigai", "roc", "htmx", "hypermedia", "runbook"]
 categories = ["web-programming"]
 
 [dependencies]
-ikigai-core = "0.1.19"
+ikigai-core = "0.1.26"  # ArgSpec::class (typed inputs for the Selection demo)
 # Structured (application/json) representation for non-HTML hosts — the TUI sources
 # it to drive step-running by number.
 serde = { version = "1", features = ["derive"] }
