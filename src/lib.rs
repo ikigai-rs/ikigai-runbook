@@ -327,7 +327,10 @@ static DEMOS: &[Demo] = &[
                 Tool-selection done by the kernel: a deterministic query over the catalog, \
                 not a guess (an agent would let an LLM disambiguate only what's left). Three \
                 toy actions are mounted — **greet** needs a Person, **geocode** needs a \
-                PostalAddress, **mail** needs both.",
+                PostalAddress, **mail** needs both. And it *reasons*: the host loads an \
+                alignment graph (`urn:data:alignment`) with `foaf:Person rdfs:subClassOf \
+                schema:Person`, so a `foaf:Person` entity satisfies the `schema:Person` \
+                action too — add one triple, gain an affordance.",
         steps: &[
             Step {
                 label: "have a Person",
@@ -350,9 +353,30 @@ static DEMOS: &[Demo] = &[
                 cmd: "source urn:action:greet who=Ada",
                 note: "the type is metadata for selection; invoke the action like any endpoint",
             },
+            Step {
+                label: "the alignment graph",
+                cmd: "source urn:data:alignment",
+                note: "one triple: foaf:Person rdfs:subClassOf schema:Person",
+            },
+            Step {
+                label: "foaf:Person → greet  (subClassOf!)",
+                cmd: "source urn:kernel:actions types=http://xmlns.com/foaf/0.1/Person",
+                note: "no action requires foaf:Person — but it IS a schema:Person, so greet matches",
+            },
         ],
     },
 ];
+
+/// An RDFS alignment graph (served as `urn:data:alignment`): `foaf:Person rdfs:subClassOf
+/// schema:Person`. The host parses its `rdfs:subClassOf` triples (via
+/// `ikigai_rdf::subclass_axioms`) into the kernel's subclass closure, so type-aware action
+/// selection reasons over it — a `foaf:Person` entity satisfies a `schema:Person` action.
+/// Edit this graph (add a triple) and the available actions change.
+pub const ALIGNMENT_TTL: &str = "\
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .\n\
+@prefix schema: <https://schema.org/> .\n\
+foaf:Person rdfs:subClassOf schema:Person .\n";
 
 /// A JSON-LD context for the ikigai namespace, served as `urn:data:ik-context` — the
 /// resource the JSON-LD demo's `compact` step compacts against. `@vocab` maps the default
@@ -405,6 +429,25 @@ pub fn space() -> EndpointSpace {
                 .verb(Verb::Source)
                 .verb(Verb::Meta)
                 .output("application/ld+json"),
+        ),
+    );
+    // The RDFS alignment graph the Selection demo reasons over — the host loads its
+    // subClassOf triples into the kernel's closure. Served here so the demo can show it.
+    space = space.bind(
+        Exact::new("urn:data:alignment"),
+        FnEndpoint::new("alignment", |_inv: &Invocation<'_>| {
+            Ok(repr("text/turtle", ALIGNMENT_TTL.to_string()).cacheable())
+        })
+        .with_description(
+            Description::new("alignment")
+                .title("RDFS alignment graph")
+                .summary(
+                    "rdfs:subClassOf axioms (foaf:Person ⊑ schema:Person) the host folds into \
+                     the kernel's subclass closure for type-aware action selection.",
+                )
+                .verb(Verb::Source)
+                .verb(Verb::Meta)
+                .output("text/turtle"),
         ),
     );
     // Toy typed "action" endpoints for the Selection demo. Each declares the RDF class its
