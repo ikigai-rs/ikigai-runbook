@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.1.8"  # Selection demo: rdfs:subClassOf magic (foaf:Person) + urn:data:alignment
+version = "0.1.9"  # SHACL demo tab (account good/bad + endpoint dogfooding) + urn:data:* shapes
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]

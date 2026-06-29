@@ -365,6 +365,84 @@ static DEMOS: &[Demo] = &[
             },
         ],
     },
+    Demo {
+        id: "shacl",
+        label: "SHACL",
+        intro: "SHACL validates an RDF graph against *shapes* — which properties a node must \
+                have, their types and cardinalities. `urn:shacl:validate` takes the `data` \
+                (piped) and a `shapes` graph (a resource you point at); the report is itself \
+                a graph, or JSON `{conforms, violations}`. Same resource, **two engines**: \
+                rudof (Rust) in the CLI, shacl-engine (JS) in the browser — parity-tested to \
+                agree. A good Account conforms; a broken one is reported; and the kernel \
+                validates its *own* catalog against an `ik:Endpoint` shape (dogfooding).",
+        steps: &[
+            Step {
+                label: "the shapes",
+                cmd: "source urn:data:account-shape",
+                note: "an Account needs an IRI owner and a decimal balance",
+            },
+            Step {
+                label: "valid → conforms",
+                cmd: "source urn:data:account-ok \
+                      | urn:shacl:validate shapes=urn:data:account-shape as=application/json",
+                note: "conforms: true, no violations",
+            },
+            Step {
+                label: "broken → report",
+                cmd: "source urn:data:account-bad \
+                      | urn:shacl:validate shapes=urn:data:account-shape as=application/json",
+                note: "owner is a literal (not an IRI), balance isn't a decimal → two violations",
+            },
+            Step {
+                label: "dogfood: validate the catalog",
+                cmd: "source urn:kernel:catalog \
+                      | urn:shacl:validate shapes=urn:data:endpoint-shape as=application/json",
+                note: "the kernel validates its OWN endpoint metadata against an ik:Endpoint shape",
+            },
+        ],
+    },
+];
+
+/// SHACL demo resources, served as `urn:data:<id>` (Turtle) — the shapes + good/bad data the
+/// SHACL demo points at. `urn:shacl:validate` sources `shapes` by reference, so these are just
+/// resources like any other (rudof natively, shacl-engine in the browser — same results).
+static SHACL_DATA: &[(&str, &str, &str)] = &[
+    (
+        "account-shape",
+        "Account shape (SHACL)",
+        "@prefix sh: <http://www.w3.org/ns/shacl#> .\n\
+         @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n\
+         @prefix ex: <http://example.org/> .\n\
+         ex:AccountShape a sh:NodeShape ;\n  \
+           sh:targetClass ex:Account ;\n  \
+           sh:property [ sh:path ex:owner ; sh:minCount 1 ; sh:nodeKind sh:IRI ] ;\n  \
+           sh:property [ sh:path ex:balance ; sh:minCount 1 ; sh:datatype xsd:decimal ] .\n",
+    ),
+    (
+        "account-ok",
+        "A conforming Account",
+        "@prefix ex: <http://example.org/> .\n\
+         ex:acct1 a ex:Account ;\n  \
+           ex:owner ex:alice ;\n  \
+           ex:balance \"100.50\"^^<http://www.w3.org/2001/XMLSchema#decimal> .\n",
+    ),
+    (
+        "account-bad",
+        "A violating Account",
+        "@prefix ex: <http://example.org/> .\n\
+         ex:acct2 a ex:Account ;\n  \
+           ex:owner \"alice\" ;\n  \
+           ex:balance \"lots\" .\n",
+    ),
+    (
+        "endpoint-shape",
+        "ik:Endpoint shape (SHACL)",
+        "@prefix sh: <http://www.w3.org/ns/shacl#> .\n\
+         @prefix ik: <https://ikigai-rs.dev/ns#> .\n\
+         ik:EndpointShape a sh:NodeShape ;\n  \
+           sh:targetClass ik:Endpoint ;\n  \
+           sh:property [ sh:path ik:title ; sh:minCount 1 ] .\n",
+    ),
 ];
 
 /// An RDFS alignment graph (served as `urn:data:alignment`): `foaf:Person rdfs:subClassOf
@@ -450,6 +528,24 @@ pub fn space() -> EndpointSpace {
                 .output("text/turtle"),
         ),
     );
+    // SHACL demo resources (shapes + good/bad data), each served as urn:data:<id> Turtle.
+    // urn:shacl:validate sources `shapes` by reference, so these are plain resources.
+    for &(id, title, ttl) in SHACL_DATA {
+        space = space.bind(
+            Exact::new(format!("urn:data:{id}")),
+            FnEndpoint::new(format!("data-{id}"), move |_inv: &Invocation<'_>| {
+                Ok(repr("text/turtle", ttl.to_string()).cacheable())
+            })
+            .with_description(
+                Description::new(format!("data-{id}"))
+                    .title(title)
+                    .summary("A SHACL demo resource (shapes or data graph), served as Turtle.")
+                    .verb(Verb::Source)
+                    .verb(Verb::Meta)
+                    .output("text/turtle"),
+            ),
+        );
+    }
     // Toy typed "action" endpoints for the Selection demo. Each declares the RDF class its
     // input needs (`ik:class`), so `urn:kernel:actions` can match them by type — "given these
     // entities, what can I do?". The class is selection metadata; invoking just uses the
