@@ -46,8 +46,9 @@ static DEMOS: &[Demo] = &[
         id: "basics",
         label: "Basics",
         intro: "A resource is resolved by name; functions are resources too, and `|` \
-                pipes one resolution's output into the next. The same engine drives this \
-                page, the terminal, and the desktop CLI.",
+                pipes one resolution's output into the next — a resource can even branch on \
+                the value of another. The same engine drives this page, the terminal, and \
+                the desktop CLI.",
         steps: &[
             Step {
                 label: "uppercase",
@@ -63,6 +64,13 @@ static DEMOS: &[Demo] = &[
                 label: "host info",
                 cmd: "source urn:host:info",
                 note: "the host names itself (uncacheable — a live fact)",
+            },
+            Step {
+                label: "branch (lazy)",
+                cmd: "source urn:fn:conditional if=urn:demo:echo/true then=urn:demo:echo/taken else=urn:does:not:exist",
+                note: "sources `if`, then only the taken branch — the missing `else` is never \
+                       touched (conditional is the lazy sibling of compose). Flip `true`→`false` \
+                       to watch it reach for the branch that isn't there.",
             },
         ],
     },
