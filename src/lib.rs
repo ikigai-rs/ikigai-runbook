@@ -409,6 +409,63 @@ static DEMOS: &[Demo] = &[
             },
         ],
     },
+    Demo {
+        id: "lisp",
+        label: "Lisp",
+        intro: "Code is a resource too. `urn:lisp:eval` runs an s-expression inside the \
+                kernel, where the verbs are ordinary functions — `(source \"urn:…\")` \
+                re-enters resolution under *this* invocation's capability, so a program can \
+                never reach past its caller's authority. The same s-expr syntax compiles to \
+                RDF, and a program can be **signed**: `urn:sign:sign` produces a signature \
+                graph that travels with the code, so a remote peer can verify WHO wrote it \
+                before running it (wire-eval).",
+        steps: &[
+            Step {
+                label: "evaluate",
+                cmd: "source urn:lisp:eval in=\"(+ 40 2)\"",
+                note: "an s-expression as a resource — the evaluator is an endpoint",
+            },
+            Step {
+                label: "verbs are functions",
+                cmd: "source urn:lisp:eval in=\"(string-upcase (source \\\"urn:data:about\\\"))\"",
+                note: "(source …) re-enters the kernel: the program composes with resources, \
+                       under the caller's capability",
+            },
+            Step {
+                label: "s-expr → RDF",
+                cmd: "source urn:lisp:eval in=\"(graph (quote (graph (prefix (ex \\\"http://example.org/\\\")) \
+                      (ex:alice a ex:Person) (ex:alice ex:name \\\"Alice\\\"))))\"",
+                note: "the same syntax compiles to canonical Turtle — code and data in one notation",
+            },
+            Step {
+                label: "mint a signing key",
+                cmd: "source urn:secret:generate into=demo-code type=ed25519",
+                note: "returns the PUBLIC half; the private half stays in the keystore. \
+                       NB this mints a FRESH key each time you press it",
+            },
+            Step {
+                label: "sign a program",
+                cmd: "source urn:sign:sign in=\"(+ 40 2)\" key=urn:secret:demo-code",
+                note: "an RDF signature graph: algorithm, signer, value, content hash — \
+                       skolemized, no blank nodes",
+            },
+            Step {
+                label: "sign | verify",
+                cmd: "source urn:sign:sign in=\"(+ 40 2)\" key=urn:secret:demo-code \
+                      | urn:sign:verify in=\"(+ 40 2)\" key=urn:secret:demo-code.pub",
+                note: "valid: signed by … — the signature graph pipes straight into the verifier",
+            },
+            Step {
+                label: "verify catches a change",
+                cmd: "source urn:sign:sign in=\"(+ 40 2)\" key=urn:secret:demo-code \
+                      | urn:sign:verify in=\"(+ 40 3)\" key=urn:secret:demo-code.pub",
+                note: "invalid: content hash mismatch — one changed character breaks it. \
+                       This is what a peer checks BEFORE running shipped code: \
+                       `ikigai serve quic://… --cap urn:cap:lisp:run --code-signer urn:codekey:you.pub`, \
+                       then `urn:lisp:run in=<program> sig=<graph> key=<codekey>`",
+            },
+        ],
+    },
 ];
 
 /// SHACL demo resources, served as `urn:data:<id>` (Turtle) — the shapes + good/bad data the
