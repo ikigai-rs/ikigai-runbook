@@ -464,6 +464,39 @@ static DEMOS: &[Demo] = &[
                        `ikigai serve quic://… --cap urn:cap:lisp:run --code-signer urn:codekey:you.pub`, \
                        then `urn:lisp:run in=<program> sig=<graph> key=<codekey>`",
             },
+            Step {
+                label: "named verbs, generated",
+                cmd: "source urn:lisp:aliases prefix=urn:fn:",
+                note: "the manifold projected as callable Lisp: `(fn-toUpper \"hi\")` instead of \
+                       a URI and named arguments. GENERATED from each endpoint's own ArgSpecs — \
+                       positional parameters are the REQUIRED inputs, in declaration order — so \
+                       this surface cannot drift from what the kernel accepts, and a newly bound \
+                       endpoint gets a verb for free",
+            },
+            Step {
+                label: "aliases are capability-scoped",
+                cmd: "source urn:lisp:aliases",
+                note: "the WHOLE surface this session may invoke. It is projected from \
+                       `urn:kernel:actions`, which the kernel has already narrowed to your \
+                       capability — so a scoped session gets a SMALLER prelude, not a full one \
+                       whose verbs fail when called. Try `cap urn:cap:kernel:inspect` first and \
+                       watch it shrink",
+            },
+            Step {
+                label: "transclude the prelude, then call it",
+                cmd: "source urn:fn:compose src=urn:data:alias-demo | urn:lisp:eval",
+                note: "each evaluation is ISOLATED, so definitions do not survive from one to \
+                       the next — the prelude has to be IN the program. `$a{urn:lisp:aliases}` \
+                       splices it in by reference, so the program stores a pointer to the \
+                       manifold rather than a copy that can go stale",
+            },
+            Step {
+                label: "the same surface, for Emacs",
+                cmd: "source urn:lisp:aliases as=text/x-emacs-lisp prefix=urn:fn:",
+                note: "one resource, two representations. In Emacs, `M-x ikigai-refresh-aliases` \
+                       writes and loads these — `(ikigai-fn-toUpper \"hi\")` from any buffer, \
+                       keybinding or org-babel block, arity-checked by Emacs itself",
+            },
         ],
     },
 ];
