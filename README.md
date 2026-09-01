@@ -43,18 +43,40 @@ to the in-crate table — no per-host code, in either frontend.
 | `urn:runbook:zerotrust` | ZeroTrust | `cap` narrowing: writes refused, reads resolve, jail + network gating |
 | `urn:runbook:linkeddata` | Linked Data | `urn:rdf:transrept` to Turtle; cacheability flowing down the pipe |
 
-## Host-extensible tabs
+## Host-extensible tabs — `add_tab` and `hide_tab`
 
-A host can append its own tabs to the strip:
+A host shapes the strip in both directions: it can append a tab the shared module doesn't know
+about, and it can withdraw one it cannot serve.
 
 ```rust
 ikigai_runbook::add_tab("identity", "Identity"); // web-demo's browser-only tab
+ikigai_runbook::hide_tab("lisp");                // …which has no urn:lisp:eval to run
 ```
 
 `add_tab(id, label)` is idempotent (a host may build its kernel more than once). The host also
 binds `urn:runbook:<id>` itself; that endpoint's `text/html` representation should lead with
 `render_tab_strip(<id>)` so the strip stays identical across every tab — the native CLI simply
 never registers any extras.
+
+`hide_tab(id)` is its mirror: the id stops appearing in every strip this crate renders, HTML
+and text alike. It exists because a built-in page can be unservable in a particular host — the
+in-browser WASM kernel does not link `ikigai-lisp` (Steel doesn't go to wasm), so its **Lisp**
+tab offered steps that could only answer `no endpoint resolved for urn:lisp:eval`. Three
+behaviours are pinned by tests:
+
+| Case | Behaviour |
+| --- | --- |
+| unknown id | accepted silently — so `hide_tab` and `add_tab` **commute** (either order gives the same strip). The cost: a typo hides nothing and says nothing. |
+| the hidden tab is **active** | the strip omits it and marks nothing selected — a tab for an unservable page is not put back in front of the user who reached it |
+| resolving a hidden page | still works. Hiding is presentation, not unbinding: `space()` binds every built-in regardless, so the kernel's contents never depend on whether `hide_tab` ran before or after it |
+
+`tab_ids()` returns the ids the strip would render (built-ins + `add_tab`s − `hide_tab`s) — the
+seam for a host that wants a mistyped `hide_tab` to be loud.
+
+**The limitation, stated rather than hidden:** `hide_tab` requires the host to *know* what it
+cannot serve. It fixes the Lisp tab; it does not close the class, and the next tab a host can't
+bind regresses the same way. The honest version — a strip that probes the kernel and omits
+whatever does not resolve — was considered and deferred.
 
 ## Usage
 
