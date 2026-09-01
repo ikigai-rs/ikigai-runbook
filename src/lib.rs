@@ -13,6 +13,9 @@
 //! the host (one small adapter turns an `hx-get`'s command into `engine.eval`); this
 //! crate only *renders*. Content-negotiates on the `as` argument: `text/html`
 //! (default, htmx) or `text/plain` (the TUI).
+//!
+//! A host shapes the strip in both directions: [`add_tab`] appends a page the shared
+//! module doesn't know about, and [`hide_tab`] withdraws one this host cannot serve.
 
 #![forbid(unsafe_code)]
 
@@ -770,6 +773,13 @@ fn extra_tabs() -> &'static std::sync::Mutex<Vec<(String, String)>> {
     TABS.get_or_init(|| std::sync::Mutex::new(Vec::new()))
 }
 
+/// Host-hidden tab ids, filtered out of the strip wherever it is rendered. The
+/// subtractive twin of [`extra_tabs`], and process-global for the same reason.
+fn hidden_tabs() -> &'static std::sync::Mutex<Vec<String>> {
+    static HIDDEN: std::sync::OnceLock<std::sync::Mutex<Vec<String>>> = std::sync::OnceLock::new();
+    HIDDEN.get_or_init(|| std::sync::Mutex::new(Vec::new()))
+}
+
 /// Register an extra tab so it appears in the runbook strip on every panel. The host
 /// also binds `urn:runbook:<id>`; that endpoint's `text/html` representation should lead
 /// with [`render_tab_strip`]`(<id>)` so the strip stays identical across tabs.
@@ -783,15 +793,104 @@ pub fn add_tab(id: impl Into<String>, label: impl Into<String>) {
     }
 }
 
-/// The htmx tab strip — the built-in demos plus any host [`add_tab`]s — with `active`
-/// marked `selected`. Public so a host's extra-tab endpoint renders the identical strip
-/// (HATEOAS: every tab carries the whole strip, so "which tab is active" lives in the
-/// returned HTML, not client state).
+/// Hide a tab — the subtractive mirror of [`add_tab`]. A host that cannot serve a
+/// built-in page says so once, and the tab stops appearing in every strip this crate
+/// renders (HTML and text alike).
+///
+/// The case that motivated it: the in-browser WASM kernel does not link `ikigai-lisp`
+/// (Steel doesn't go to wasm), so its **Lisp** tab rendered a panel whose every step
+/// answered `no endpoint resolved for urn:lisp:eval`. `hide_tab("lisp")` removes the
+/// offer.
+///
+/// Semantics, all three deliberate:
+///
+/// * **An unknown id is accepted silently.** Hiding is recorded as an id, not resolved
+///   against a tab, so `hide_tab` and [`add_tab`] commute — hiding a host tab before
+///   registering it gives the same strip as hiding it after. The cost is real and is not
+///   papered over: a **typo hides nothing and says nothing**, and the tab quietly comes
+///   back. [`tab_ids`] is the seam for catching that — a host can assert on the strip it
+///   actually gets.
+/// * **Hidden wins over active.** If the hidden page is the one being rendered (a host
+///   can still be handed `urn:runbook:lisp` directly), the strip omits it and no tab is
+///   marked selected. The alternative — showing it only while active — would put a tab
+///   for an unservable page back in front of the very user who reached it.
+/// * **Hiding is presentation, not unbinding.** [`space`] still binds every built-in
+///   page, so a hidden resource stays resolvable by name. Making the bound space depend
+///   on this global would make a kernel's contents depend on whether `hide_tab` ran
+///   before or after `space()` — the order-dependence this API exists to avoid.
+///
+/// **The weakness, stated plainly:** `hide_tab` requires the host to *know* what it
+/// cannot serve. It fixes the Lisp tab; it does not close the class. The honest version
+/// is a strip that probes the kernel and omits whatever does not resolve — considered
+/// and deferred, so the next tab a host can't bind regresses in exactly this way. Treat
+/// this as the manual valve it is.
+///
+/// ```
+/// ikigai_runbook::add_tab("identity", "Identity");
+/// ikigai_runbook::hide_tab("lisp");
+///
+/// let strip = ikigai_runbook::render_tab_strip("basics");
+/// assert!(strip.contains("urn:runbook:identity"));
+/// assert!(!strip.contains("urn:runbook:lisp"));
+/// ```
+pub fn hide_tab(id: impl Into<String>) {
+    let id = id.into();
+    let mut hidden = hidden_tabs().lock().expect("runbook hidden tabs");
+    // Idempotent for the same reason `add_tab` is: hosts build kernels more than once.
+    if !hidden.iter().any(|existing| existing == &id) {
+        hidden.push(id);
+    }
+}
+
+/// The ids currently in the strip, in tab order: the built-ins plus any [`add_tab`]s,
+/// minus any [`hide_tab`]s. The observable form of what the strips render — a host that
+/// wants a mistyped [`hide_tab`] to be loud can assert against this.
+pub fn tab_ids() -> Vec<String> {
+    let hidden = snapshot_hidden();
+    let extra = snapshot_extra();
+    DEMOS
+        .iter()
+        .map(|d| d.id.to_string())
+        .chain(extra.into_iter().map(|(id, _)| id))
+        .filter(|id| !hidden.contains(id))
+        .collect()
+}
+
+/// Copy the extra tabs out from under the lock. Both snapshot helpers exist so that the
+/// rendering runs with *no* lock held: `render_tab_strip` is called from inside a
+/// resolution, and doing fallible or re-entrant work under a process-global lock is how a
+/// host gets wedged — that mistake cost the web demo its Control panel this week
+/// (`ikigai-time` #303). Cloning two short `Vec<String>`s per strip is the cheap side of
+/// that trade.
+fn snapshot_extra() -> Vec<(String, String)> {
+    extra_tabs().lock().expect("runbook tabs").clone()
+}
+
+fn snapshot_hidden() -> Vec<String> {
+    hidden_tabs().lock().expect("runbook hidden tabs").clone()
+}
+
+/// The htmx tab strip — the built-in demos plus any host [`add_tab`]s, minus any
+/// [`hide_tab`]s — with `active` marked `selected`. Public so a host's extra-tab endpoint
+/// renders the identical strip (HATEOAS: every tab carries the whole strip, so "which tab
+/// is active" lives in the returned HTML, not client state).
+///
+/// If `active` is a hidden id the strip simply has no selected tab; the panel below it
+/// still renders, because hiding a tab does not unbind its resource.
 pub fn render_tab_strip(active: &str) -> String {
+    // Snapshot first, then render: no allocation-heavy formatting and no re-entrancy
+    // while the process-global locks are held.
+    let hidden = snapshot_hidden();
+    let extra = snapshot_extra();
+
     let mut tabs = String::from("<nav class=\"rb-tabs\" role=\"tablist\">");
-    let builtin = DEMOS.iter().map(|d| (d.id, d.label));
-    let extra = extra_tabs().lock().expect("runbook tabs");
-    for (id, label) in builtin.chain(extra.iter().map(|(i, l)| (i.as_str(), l.as_str()))) {
+    let builtin = DEMOS
+        .iter()
+        .map(|d| (d.id.to_string(), d.label.to_string()));
+    for (id, label) in builtin.chain(extra) {
+        if hidden.contains(&id) {
+            continue;
+        }
         let selected = id == active;
         tabs.push_str(&format!(
             "<button role=\"tab\" class=\"rb-tab{cls}\" aria-selected=\"{sel}\" \
@@ -841,8 +940,12 @@ fn render_html(active: &Demo) -> String {
 /// runnable list. (The TUI runs a step by issuing its command; it can't run htmx.)
 fn render_text(active: &Demo) -> String {
     let mut out = String::new();
+    // The text face honours `hide_tab` too: a host that cannot serve a page shouldn't
+    // offer it in the TUI either.
+    let hidden = snapshot_hidden();
     let tabs: Vec<String> = DEMOS
         .iter()
+        .filter(|d| !hidden.iter().any(|h| h == d.id))
         .map(|d| {
             if d.id == active.id {
                 format!("[{}]", d.label)
@@ -863,4 +966,149 @@ fn render_text(active: &Demo) -> String {
         ));
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::executor::block_on;
+    use ikigai_core::{ArgRef, Capability, Iri, Kernel, Request};
+    use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+
+    /// `add_tab`/`hide_tab` write process-global state, so the tests that touch them run
+    /// one at a time. Nothing un-hides — a hidden id stays hidden for the rest of the
+    /// binary — so no test may assume the presence of a tab another test hides.
+    fn serial() -> MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Source a runbook page through a real kernel, as the hosts do.
+    fn source(iri: &str, as_type: &str) -> String {
+        let request = Request::new(Verb::Source, Iri::parse(iri).unwrap())
+            .with_arg("as", ArgRef::Inline(as_type.as_bytes().to_vec()));
+        let kernel = Kernel::new(Arc::new(space()));
+        let rep = block_on(kernel.issue(request, &Capability::root())).unwrap();
+        String::from_utf8(rep.bytes).unwrap()
+    }
+
+    fn button(id: &str) -> String {
+        format!("urn:runbook:{id} as=text/html")
+    }
+
+    /// The motivating case: a host that cannot serve `urn:lisp:eval` hides the Lisp tab,
+    /// and it stops being offered — in the HTML strip and the text face alike — while its
+    /// neighbours keep theirs. This is the only test that hides `lisp`.
+    #[test]
+    fn hide_tab_removes_the_tab_everywhere_it_is_rendered() {
+        let _guard = serial();
+
+        assert!(render_tab_strip("basics").contains(&button("lisp")));
+        assert!(source("urn:runbook:basics", "text/plain").contains("Lisp"));
+
+        hide_tab("lisp");
+
+        let strip = render_tab_strip("basics");
+        assert!(!strip.contains(&button("lisp")), "hidden tab still offered");
+        assert!(strip.contains(&button("basics")), "neighbour tab lost");
+        assert!(!tab_ids().iter().any(|id| id == "lisp"));
+        assert!(tab_ids().iter().any(|id| id == "basics"));
+
+        // The text face honours it too.
+        let text = source("urn:runbook:basics", "text/plain");
+        assert!(!text.lines().next().unwrap().contains("Lisp"));
+        assert!(text.lines().next().unwrap().contains("Basics"));
+    }
+
+    /// Hiding is presentation, not unbinding: the page still resolves (a host can be
+    /// handed `urn:runbook:<id>` directly), and when the hidden page IS the active one
+    /// the strip omits it rather than showing an unservable tab — so nothing is marked
+    /// selected. Uses `http` so it stays independent of the `lisp` test's ordering.
+    #[test]
+    fn a_hidden_page_still_resolves_and_selects_nothing() {
+        let _guard = serial();
+        hide_tab("http");
+
+        let html = source("urn:runbook:http", "text/html");
+        assert!(html.contains("rb-panel"), "hidden page stopped resolving");
+        assert!(
+            !html.contains(&button("http")),
+            "hidden tab re-offered as active"
+        );
+        assert!(
+            !html.contains("aria-selected=\"true\""),
+            "hidden tab selected"
+        );
+        // The rest of the strip is intact, so there is a way back out of the page.
+        assert!(html.contains(&button("basics")));
+    }
+
+    /// `hide_tab` and `add_tab` commute: hiding before registering gives the same strip
+    /// as hiding after. That is what makes the id-not-tab bookkeeping worth its cost.
+    #[test]
+    fn hide_and_add_commute_in_either_order() {
+        let _guard = serial();
+        let before = render_tab_strip("basics");
+
+        add_tab("alpha", "Alpha");
+        hide_tab("alpha");
+        let add_then_hide = render_tab_strip("basics");
+
+        hide_tab("beta");
+        add_tab("beta", "Beta");
+        let hide_then_add = render_tab_strip("basics");
+
+        assert_eq!(before, add_then_hide, "add-then-hide changed the strip");
+        assert_eq!(before, hide_then_add, "hide-then-add changed the strip");
+        assert!(!render_tab_strip("basics").contains("Alpha"));
+        assert!(!render_tab_strip("basics").contains("Beta"));
+    }
+
+    /// An unknown id is accepted silently — the price of commuting with `add_tab`. The
+    /// documented consequence is that a TYPO is a no-op, and this is what that looks
+    /// like: `tab_ids` is the seam a host can assert on to catch it.
+    #[test]
+    fn hiding_an_unknown_id_changes_nothing() {
+        let _guard = serial();
+        let before = render_tab_strip("basics");
+        let ids_before = tab_ids();
+
+        hide_tab("lissp"); // the typo a host would actually make
+
+        assert_eq!(before, render_tab_strip("basics"));
+        assert_eq!(ids_before, tab_ids());
+    }
+
+    /// Hiding works on a host's own `add_tab` too, not just the built-ins.
+    #[test]
+    fn hide_tab_also_hides_a_host_registered_tab() {
+        let _guard = serial();
+        add_tab("gamma", "Gamma");
+        assert!(render_tab_strip("basics").contains(&button("gamma")));
+
+        hide_tab("gamma");
+        assert!(!render_tab_strip("basics").contains(&button("gamma")));
+    }
+
+    /// Idempotence, matching `add_tab`: a host that builds its kernel twice hides once.
+    #[test]
+    fn hide_tab_is_idempotent() {
+        let _guard = serial();
+        add_tab("delta", "Delta");
+        hide_tab("delta");
+        let once = render_tab_strip("basics");
+        hide_tab("delta");
+        assert_eq!(once, render_tab_strip("basics"));
+        assert_eq!(
+            1,
+            hidden_tabs()
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|h| *h == "delta")
+                .count()
+        );
+    }
 }
