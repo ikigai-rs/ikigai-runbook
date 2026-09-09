@@ -564,7 +564,7 @@ foaf:Person rdfs:subClassOf schema:Person .\n";
 const IK_CONTEXT: &str =
     r#"{"@context":{"@vocab":"https://ikigai-rs.dev/ns#","ik":"https://ikigai-rs.dev/ns#"}}"#;
 
-/// The runbook space: binds `urn:runbook:<id>` for every [`Demo`]. Mount it in any
+/// The runbook space: binds `urn:runbook:<id>` for every `Demo` (private). Mount it in any
 /// kernel's root (the CLI's embedded space, the in-browser kernel) and the whole
 /// runbook is available, identically.
 pub fn space() -> EndpointSpace {
