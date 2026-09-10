@@ -20,9 +20,18 @@
 #![forbid(unsafe_code)]
 
 use ikigai_core::{
-    ArgSpec, Description, EndpointSpace, Exact, FnEndpoint, Invocation, ReprType, Representation,
-    Result, Verb,
+    ArgSpec, Description, EndpointSpace, Error, Exact, FnEndpoint, Invocation, ReprType,
+    Representation, Result, Verb,
 };
+
+/// The datatype of a by-value scalar input, as the manifold declares it.
+const XSD_STRING: &str = "http://www.w3.org/2001/XMLSchema#string";
+
+/// The faces every runbook page serves, in the order `as` accepts them: the first is
+/// the default. This list IS the page's declared outputs and the `as` input's `one_of`,
+/// so the manifold and the renderer cannot drift apart — and `urn:kernel:validate` refuses
+/// an `as` value the renderer would silently fall back from.
+pub const PAGE_FACES: [&str; 3] = ["text/html", "text/plain", "application/json"];
 
 /// One runnable step within a demo: a button label, the REPL command it runs, and a
 /// one-line note on what to observe.
@@ -507,6 +516,14 @@ static DEMOS: &[Demo] = &[
 /// SHACL demo resources, served as `urn:data:<id>` (Turtle) — the shapes + good/bad data the
 /// SHACL demo points at. `urn:shacl:validate` sources `shapes` by reference, so these are just
 /// resources like any other (rudof natively, shacl-engine in the browser — same results).
+///
+/// Every node is named, property shapes included: a blank `sh:property [ … ]` is the
+/// textbook spelling, but a graph this module serves is skolemized like any other (a
+/// validation report can then cite `sh:sourceShape` by a stable IRI). The Account demo lives
+/// under `http://example.org/` — the reserved example namespace, because it is a demo of
+/// validating *your* data, not ikigai's. The endpoint shape is the runbook's own, named
+/// under `urn:runbook:shape:*`; it targets `ik:Endpoint` and `ik:title`, which the shared
+/// vocabulary defines, but is not itself a vocabulary term.
 static SHACL_DATA: &[(&str, &str, &str)] = &[
     (
         "account-shape",
@@ -516,8 +533,11 @@ static SHACL_DATA: &[(&str, &str, &str)] = &[
          @prefix ex: <http://example.org/> .\n\
          ex:AccountShape a sh:NodeShape ;\n  \
            sh:targetClass ex:Account ;\n  \
-           sh:property [ sh:path ex:owner ; sh:minCount 1 ; sh:nodeKind sh:IRI ] ;\n  \
-           sh:property [ sh:path ex:balance ; sh:minCount 1 ; sh:datatype xsd:decimal ] .\n",
+           sh:property ex:AccountShape-owner, ex:AccountShape-balance .\n\
+         ex:AccountShape-owner a sh:PropertyShape ;\n  \
+           sh:path ex:owner ; sh:minCount 1 ; sh:nodeKind sh:IRI .\n\
+         ex:AccountShape-balance a sh:PropertyShape ;\n  \
+           sh:path ex:balance ; sh:minCount 1 ; sh:datatype xsd:decimal .\n",
     ),
     (
         "account-ok",
@@ -540,9 +560,11 @@ static SHACL_DATA: &[(&str, &str, &str)] = &[
         "ik:Endpoint shape (SHACL)",
         "@prefix sh: <http://www.w3.org/ns/shacl#> .\n\
          @prefix ik: <https://ikigai-rs.dev/ns#> .\n\
-         ik:EndpointShape a sh:NodeShape ;\n  \
+         <urn:runbook:shape:endpoint> a sh:NodeShape ;\n  \
            sh:targetClass ik:Endpoint ;\n  \
-           sh:property [ sh:path ik:title ; sh:minCount 1 ] .\n",
+           sh:property <urn:runbook:shape:endpoint:title> .\n\
+         <urn:runbook:shape:endpoint:title> a sh:PropertyShape ;\n  \
+           sh:path ik:title ; sh:minCount 1 .\n",
     ),
 ];
 
@@ -582,11 +604,20 @@ pub fn space() -> EndpointSpace {
                     .summary("A runbook page — guided, runnable steps.")
                     .verb(Verb::Source)
                     .verb(Verb::Meta)
-                    .input(ArgSpec::new("as").summary(
-                        "representation: text/html (default, htmx), text/plain, or \
-                             application/json (structured, for the TUI)",
-                    ))
-                    .output("text/html;charset=utf-8"),
+                    .input(
+                        ArgSpec::new("as")
+                            .summary(
+                                "representation: text/html (default, htmx), text/plain \
+                                 (the TUI), or application/json (structured, for the TUI \
+                                 to run a step by number)",
+                            )
+                            .class(XSD_STRING)
+                            .one_of(PAGE_FACES)
+                            .default_value(PAGE_FACES[0]),
+                    )
+                    .output(PAGE_FACES[0])
+                    .output(PAGE_FACES[1])
+                    .output(PAGE_FACES[2]),
             ),
         );
     }
@@ -650,14 +681,19 @@ pub fn space() -> EndpointSpace {
     // Toy typed "action" endpoints for the Selection demo. Each declares the RDF class its
     // input needs (`ik:class`), so `urn:kernel:actions` can match them by type — "given these
     // entities, what can I do?". The class is selection metadata; invoking just uses the
-    // string value. greet needs a Person, geocode a PostalAddress, mail needs both.
+    // string value. greet needs a Person, geocode a PostalAddress, mail needs both — and each
+    // input is REQUIRED in the body as well as the manifold: `inline_str(..)?` lets the
+    // kernel's typed `MissingArgument` out. (They used to default to a placeholder, so the
+    // demo's claim — an action is offered only when its required inputs are satisfied — was
+    // enforced by the manifold and ignored by the action. Dispatch does not check ArgSpecs;
+    // only `urn:kernel:validate` does.)
     space = space
         .bind(
             Exact::new("urn:action:greet"),
             FnEndpoint::new("action-greet", |inv: &Invocation<'_>| {
                 Ok(repr(
                     "text/plain",
-                    format!("Hello, {}!", inv.inline_str("who").unwrap_or("friend")),
+                    format!("Hello, {}!", inv.inline_str("who")?),
                 ))
             })
             .with_description(action_card(
@@ -672,7 +708,7 @@ pub fn space() -> EndpointSpace {
             FnEndpoint::new("action-geocode", |inv: &Invocation<'_>| {
                 Ok(repr(
                     "text/plain",
-                    format!("Geocoded: {}", inv.inline_str("address").unwrap_or("?")),
+                    format!("Geocoded: {}", inv.inline_str("address")?),
                 ))
             })
             .with_description(action_card(
@@ -693,8 +729,8 @@ pub fn space() -> EndpointSpace {
                     "text/plain",
                     format!(
                         "Mailed {} at {}",
-                        inv.inline_str("to").unwrap_or("?"),
-                        inv.inline_str("at").unwrap_or("?")
+                        inv.inline_str("to")?,
+                        inv.inline_str("at")?
                     ),
                 ))
             })
@@ -723,7 +759,7 @@ fn action_card(id: &str, title: &str, summary: &str, inputs: &[(&str, &str, &str
         .summary(summary.to_string())
         .verb(Verb::Source)
         .verb(Verb::Meta)
-        .output("text/plain;charset=utf-8");
+        .output("text/plain");
     for (name, class, summary) in inputs {
         d = d.input(ArgSpec::new(*name).class(*class).summary(*summary));
     }
@@ -731,14 +767,17 @@ fn action_card(id: &str, title: &str, summary: &str, inputs: &[(&str, &str, &str
 }
 
 /// Render `demo` per the requested `as` type — `text/plain` for the terminal, htmx
-/// HTML otherwise.
+/// HTML otherwise. The three branches are [`PAGE_FACES`]; an `as` outside that list is
+/// something the manifold already refuses (`one_of`), so the fallback here is the
+/// default face, not an error. The charset the served type carries is a parameter of
+/// the bytes, not a fourth face.
 fn render(demo: &Demo, inv: &Invocation<'_>) -> Result<Representation> {
     let as_type = inv.inline_str("as").unwrap_or("text/html");
     if as_type.starts_with("application/json") {
         // Structured form: `{ id, label, intro, steps: [{ label, cmd, note }] }` — the
         // TUI sources this to render the page and run a step by its number.
         let json = serde_json::to_string(demo)
-            .map_err(|e| ikigai_core::Error::Endpoint(format!("runbook json: {e}")))?;
+            .map_err(|e| Error::Endpoint(format!("runbook json: {e}")))?;
         Ok(repr("application/json", json))
     } else if as_type.starts_with("text/plain") {
         Ok(repr("text/plain", render_text(demo)))
