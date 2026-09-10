@@ -29,6 +29,13 @@ Every page content-negotiates on the `as` argument:
 | `text/plain` | the tab list, intro, and steps as a numbered runnable list | TUI |
 | `application/json` | `{ id, label, intro, steps: [{ label, cmd, note }] }` | TUI (run a step by number) |
 
+All three are declared: the `as` input is typed (`xsd:string`), its `one_of` is exactly this
+list (`ikigai_runbook::PAGE_FACES`, default `text/html`), and each is a declared output — so a
+consumer reading the manifold sees every face, and `urn:kernel:validate` refuses an `as` value
+the renderer would only have fallen back from. A page is served **live** on purpose: the tab
+strip it carries is host state (`add_tab` / `hide_tab`) that no golden thread tracks, so a cached
+page would keep offering a tab the host has withdrawn.
+
 ## Built-in tabs
 
 Each tab is bound as `urn:runbook:<id>` (`source` + `meta`). Adding a demo is adding an entry
@@ -42,6 +49,30 @@ to the in-crate table — no per-host code, in either frontend.
 | `urn:runbook:constraints` | Constraints | `urn:kernel:constraint` / `urn:kernel:scheduler` — Goldratt "find the constraint" |
 | `urn:runbook:zerotrust` | ZeroTrust | `cap` narrowing: writes refused, reads resolve, jail + network gating |
 | `urn:runbook:linkeddata` | Linked Data | `urn:rdf:transrept` to Turtle; cacheability flowing down the pipe |
+| `urn:runbook:transrept` | Transreption | one graph, many syntaxes — N-Triples, RDF/XML, JSON-LD, an HTML table |
+| `urn:runbook:sniff` | Sniff & dispatch | `urn:sniff` types opaque bytes; `urn:transrept:auto` routes to the transreptor |
+| `urn:runbook:jsonld` | JSON-LD | expand / flatten / compact against a context that is itself a resource |
+| `urn:runbook:selection` | Selection | typed actions + `urn:kernel:actions types=…`; `rdfs:subClassOf` reasoning |
+| `urn:runbook:shacl` | SHACL | validate good and bad data against shapes; the kernel validates its own catalog |
+| `urn:runbook:lisp` | Lisp | `urn:lisp:eval`, verbs as functions, s-expr → RDF, signing, generated aliases |
+
+The demos' data travel with the module, as resources of their own — bound so every host runs
+the same demo with no host-specific data:
+
+| Resource | Serves | Used by |
+| --- | --- | --- |
+| `urn:data:ik-context` | `application/ld+json` — a context whose `@vocab` is the ikigai namespace | JSON-LD `compact` |
+| `urn:data:alignment` | `text/turtle` — `foaf:Person rdfs:subClassOf schema:Person` | Selection (the host folds it into the subclass closure) |
+| `urn:data:account-shape`, `urn:data:account-ok`, `urn:data:account-bad` | `text/turtle` — an Account shape and a conforming / violating instance, under `http://example.org/` | SHACL |
+| `urn:data:endpoint-shape` | `text/turtle` — `<urn:runbook:shape:endpoint>`, targeting `ik:Endpoint` / `ik:title` | SHACL (dogfood) |
+| `urn:action:greet`, `urn:action:geocode`, `urn:action:mail` | `text/plain` — toy actions whose inputs are typed `schema:Person` / `schema:PostalAddress` and **required** (a missing one is a typed `MissingArgument`) | Selection |
+
+Every graph is skolemized — the SHACL property shapes are named (`ex:AccountShape-owner`,
+`<urn:runbook:shape:endpoint:title>`), never blank — and every one is a constant, cached with
+no golden thread because there is nothing to cut. The Account demo lives under
+`http://example.org/`, the reserved example namespace, because it is a demo of validating
+*your* data; the endpoint shape is the runbook's own, under `urn:runbook:shape:*`, and is not a
+vocabulary term.
 
 ## Host-extensible tabs — `add_tab` and `hide_tab`
 
@@ -92,6 +123,16 @@ let space = ikigai_runbook::space();
 // …or as text, in the TUI:
 //   source urn:runbook:basics as=text/plain
 ```
+
+## Conformance
+
+`tests/conformance.rs` runs [`ikigai-conformance`](https://github.com/ikigai-rs/ikigai-conformance)
+over `space()` with **no opt-outs**: every check, every endpoint (21), clean. Declarations: the
+six constant graphs are `pure` + `cacheable`; `http://example.org/` is the registered namespace
+(above). What the suite cannot see is pinned by hand in the same file — the declared faces are
+the faces served (both directions, from `as`'s `one_of`), the pages are live by decision, a
+required toy input is required, and a shape's `sh:path` / `sh:targetClass` targets are defined
+terms.
 
 ## License
 
