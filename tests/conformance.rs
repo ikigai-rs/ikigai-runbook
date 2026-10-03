@@ -16,8 +16,10 @@
 //! ## Declarations, and why
 //!
 //! - **`pure` + `cacheable` on the six constant graphs.** Each is `.cacheable()`
-//!   with an empty thread set — correct, because a constant has nothing to cut —
-//!   and the suite rightly refuses to take that on faith, so it is declared.
+//!   and depends on nothing, so it carries no thread but its own name (the one
+//!   the kernel hangs every cacheable answer on since ikigai-core 0.1.73) —
+//!   correct, because a constant reads nothing anyone could cut — and the suite
+//!   rightly refuses to take that on faith, so it is declared.
 //! - **Nothing on the twelve pages.** They are served live (`Expiry::Always`)
 //!   ON PURPOSE: the tab strip is process-global host state (`add_tab` /
 //!   `hide_tab`) that no golden thread tracks and no cut can reach, so a cached
@@ -53,7 +55,7 @@
 //!   IRI, which sat under `ik:` undefined.
 //! - **The JSON-LD context has zero triples** — a context document, not a
 //!   graph — so SKOLEM-RDF and VOCABULARY are vacuous on it by nature (PENDING
-//!   #26). [`the_constant_graphs_are_cached_with_no_thread_by_design`] pins the
+//!   #26). [`the_constant_graphs_are_cached_with_only_their_own_thread`] pins the
 //!   contract `urn:jsonld:compact` actually reads: a JSON object with an
 //!   `@context` whose `@vocab` is the ikigai namespace.
 
@@ -61,7 +63,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use ikigai_conformance::{rdf, Report, Suite};
-use ikigai_core::{ArgRef, Capability, Error, Expiry, Iri, Kernel, Representation, Request, Verb};
+use ikigai_core::{
+    ArgRef, Capability, Error, Expiry, Iri, Kernel, Representation, Request, Thread, Verb,
+};
 use ikigai_runbook::PAGE_FACES;
 
 /// The twelve built-in pages, by tab id (`urn:runbook:<id>`, description
@@ -307,14 +311,16 @@ fn pages_are_live_because_the_strip_is_host_state() {
     }
 }
 
-/// The six constant graphs are `.cacheable()` with an empty thread set — the
-/// suite's empty-thread finding, waived by `pure` because a constant has
-/// nothing to cut. By hand: `Expiry::Never`, no threads, a cache hit after one
-/// read, byte-identical. And the one face the RDF checks are vacuous on — the
-/// JSON-LD CONTEXT, zero triples by nature — is held to the contract
-/// `urn:jsonld:compact` reads it by.
+/// The six constant graphs are `.cacheable()` and read nothing — the suite's
+/// purity finding, waived by `pure` because a constant has nothing to cut. By
+/// hand: `Expiry::Never`, no thread but the graph's own name, a cache hit after
+/// one read, byte-identical. Since ikigai-core 0.1.73 the kernel hangs every
+/// cacheable Source answer on its own canonical name's thread, so "pure" is
+/// "no FOREIGN thread", not "no thread": an empty set held only through 0.1.72.
+/// And the one face the RDF checks are vacuous on — the JSON-LD CONTEXT, zero
+/// triples by nature — is held to the contract `urn:jsonld:compact` reads it by.
 #[test]
-fn the_constant_graphs_are_cached_with_no_thread_by_design() {
+fn the_constant_graphs_are_cached_with_only_their_own_thread() {
     let kernel = kernel();
     for (id, iri, media) in GRAPHS {
         let description = kernel
@@ -327,7 +333,12 @@ fn the_constant_graphs_are_cached_with_no_thread_by_design() {
 
         let first = resolve(&kernel, source(iri));
         assert_eq!(first.expiry, Expiry::Never, "{iri}: a constant");
-        assert!(first.threads().is_empty(), "{iri}: nothing to cut");
+        let own = Thread::new(iri);
+        assert!(
+            first.threads().iter().all(|t| *t == own),
+            "{iri}: carries only its own thread, nothing foreign to cut: {:?}",
+            first.threads()
+        );
         assert_eq!(rdf::bare_media_type(&first.repr_type.media_type), media);
         assert!(
             kernel.is_cached(&source(iri), &Capability::root()),
