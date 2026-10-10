@@ -34,6 +34,11 @@
 //!   demo of validating *your* data, so it lives under the reserved example
 //!   namespace by design; the README says so.
 //!
+//! - **`self_named_space("runbook", space)`.** `space()` takes no parameters and
+//!   reads nothing while building (the strip's host state is read at RENDER
+//!   time, and the pages are live because of it), so every call holds the same
+//!   doors and it claims `urn:iki:space:runbook` ([`ikigai_runbook::SPACE_ID`]).
+//!
 //! No opt-outs; NAMES runs (every id is kebab-case).
 //!
 //! ## What the suite cannot hold and this file pins by hand
@@ -152,7 +157,9 @@ fn page_iri(id: &str) -> String {
 
 /// The suite, configured for this module (the file docs say why each line).
 fn suite() -> Suite {
-    let mut suite = Suite::new().namespace(EXAMPLE_NS);
+    let mut suite = Suite::new()
+        .namespace(EXAMPLE_NS)
+        .self_named_space("runbook", ikigai_runbook::space);
     for (id, _, _) in GRAPHS {
         suite = suite.pure(id).cacheable(id);
     }
@@ -183,6 +190,10 @@ fn conforms() {
     eprintln!("{report}");
     assert!(report.is_clean(), "{report}");
     assert_shape(&report);
+    assert_eq!(
+        ikigai_core::space_iri("runbook").as_str(),
+        ikigai_runbook::SPACE_ID
+    );
 }
 
 /// What `ikigai-conformance` 0.1.0 does not check (PENDING #11/#31/#79): a
