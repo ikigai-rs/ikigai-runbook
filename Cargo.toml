@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.2.0"  # space() names itself urn:iki:space:runbook (SPACE_ID, ledger #987): answered_by, topology and cache partitioning change for hosts
+version = "0.2.1"  # a page refuses an `as` outside PAGE_FACES with InvalidArgument instead of serving HTML (ledger #210)
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
