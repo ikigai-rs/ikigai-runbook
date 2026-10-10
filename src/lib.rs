@@ -12,7 +12,8 @@
 //! WASM kernel — so the runbook is authored once and runs in both. Execution lives in
 //! the host (one small adapter turns an `hx-get`'s command into `engine.eval`); this
 //! crate only *renders*. Content-negotiates on the `as` argument: `text/html`
-//! (default, htmx) or `text/plain` (the TUI).
+//! (default, htmx), `text/plain` (the TUI) or `application/json` (structured); any
+//! other `as` is refused with `InvalidArgument` ([`PAGE_FACES`]).
 //!
 //! A host shapes the strip in both directions: [`add_tab`] appends a page the shared
 //! module doesn't know about, and [`hide_tab`] withdraws one this host cannot serve.
@@ -32,8 +33,8 @@ const XSD_STRING: &str = "http://www.w3.org/2001/XMLSchema#string";
 
 /// The faces every runbook page serves, in the order `as` accepts them: the first is
 /// the default. This list IS the page's declared outputs and the `as` input's `one_of`,
-/// so the manifold and the renderer cannot drift apart — and `urn:kernel:validate` refuses
-/// an `as` value the renderer would silently fall back from.
+/// so the manifold and the renderer cannot drift apart: `urn:kernel:validate` refuses an
+/// `as` outside it before dispatch, and the renderer refuses the same value after.
 pub const PAGE_FACES: [&str; 3] = ["text/html", "text/plain", "application/json"];
 
 /// One runnable step within a demo: a button label, the REPL command it runs, and a
@@ -775,23 +776,46 @@ fn action_card(id: &str, title: &str, summary: &str, inputs: &[(&str, &str, &str
     d
 }
 
-/// Render `demo` per the requested `as` type — `text/plain` for the terminal, htmx
-/// HTML otherwise. The three branches are [`PAGE_FACES`]; an `as` outside that list is
-/// something the manifold already refuses (`one_of`), so the fallback here is the
-/// default face, not an error. The charset the served type carries is a parameter of
-/// the bytes, not a fourth face.
+/// The [`PAGE_FACES`] entry an `as` value names, or `None`. A face is matched on the
+/// media type's essence: a parameter (`; charset=utf-8`) and ASCII case do not make a
+/// different face (RFC 9110 §8.3.1), so `Text/Plain; charset=utf-8` is `text/plain`.
+fn page_face(as_type: &str) -> Option<&'static str> {
+    let essence = as_type.split(';').next().unwrap_or_default().trim();
+    PAGE_FACES
+        .into_iter()
+        .find(|face| face.eq_ignore_ascii_case(essence))
+}
+
+/// Render `demo` per the requested `as` type: htmx HTML (the default, when `as` is
+/// absent), `text/plain` for the terminal, or the structured `application/json`. The
+/// branches are exactly [`PAGE_FACES`], and an `as` outside that list is REFUSED with
+/// `InvalidArgument` naming the three, as the manifold's `one_of` says: answering it with
+/// the default face would read as success to a caller that asked for something else
+/// (ledger #210). The charset the served type carries is a parameter of the bytes, not a
+/// fourth face.
 fn render(demo: &Demo, inv: &Invocation<'_>) -> Result<Representation> {
-    let as_type = inv.inline_str("as").unwrap_or("text/html");
-    if as_type.starts_with("application/json") {
-        // Structured form: `{ id, label, intro, steps: [{ label, cmd, note }] }` — the
-        // TUI sources this to render the page and run a step by its number.
-        let json = serde_json::to_string(demo)
-            .map_err(|e| Error::Endpoint(format!("runbook json: {e}")))?;
-        Ok(repr("application/json", json))
-    } else if as_type.starts_with("text/plain") {
-        Ok(repr("text/plain", render_text(demo)))
-    } else {
-        Ok(repr("text/html", render_html(demo)))
+    let as_type = match inv.inline_str("as") {
+        Ok(value) => value,
+        Err(Error::MissingArgument(_)) => PAGE_FACES[0],
+        Err(other) => return Err(other),
+    };
+    match page_face(as_type) {
+        Some("application/json") => {
+            // Structured form: `{ id, label, intro, steps: [{ label, cmd, note }] }` — the
+            // TUI sources this to render the page and run a step by its number.
+            let json = serde_json::to_string(demo)
+                .map_err(|e| Error::Endpoint(format!("runbook json: {e}")))?;
+            Ok(repr("application/json", json))
+        }
+        Some("text/plain") => Ok(repr("text/plain", render_text(demo))),
+        Some("text/html") => Ok(repr("text/html", render_html(demo))),
+        _ => Err(Error::InvalidArgument {
+            name: "as".to_string(),
+            detail: format!(
+                "`{as_type}` is not a runbook page face; `as` is one of {}",
+                PAGE_FACES.join(", ")
+            ),
+        }),
     }
 }
 
@@ -1044,6 +1068,73 @@ mod tests {
 
     fn button(id: &str) -> String {
         format!("urn:runbook:{id} as=text/html")
+    }
+
+    /// Issue a Source for a page with `as` set to `arg`, returning the raw result.
+    fn try_source(iri: &str, arg: ArgRef) -> Result<Representation> {
+        let request = Request::new(Verb::Source, Iri::parse(iri).unwrap()).with_arg("as", arg);
+        let kernel = Kernel::new(Arc::new(space()));
+        block_on(kernel.issue(request, &Capability::root()))
+    }
+
+    /// Ledger #210: the manifold says `as` is `one_of` [`PAGE_FACES`], so the body must
+    /// agree. An `as` outside the list used to be answered with the HTML face, which a
+    /// caller asking for Turtle (or mistyping `text/plian`) would read as success. Every
+    /// page refuses it with a typed `InvalidArgument` naming `as` and the three faces.
+    #[test]
+    fn an_as_outside_the_page_faces_is_refused_by_name() {
+        for demo in DEMOS {
+            let iri = format!("urn:runbook:{}", demo.id);
+            for unknown in [
+                "text/turtle",
+                "text/plian",
+                "text/htmlx",
+                "application/jsonx",
+                "",
+            ] {
+                match try_source(&iri, ArgRef::Inline(unknown.as_bytes().to_vec())) {
+                    Err(Error::InvalidArgument { name, detail }) => {
+                        assert_eq!(name, "as", "{iri} as={unknown:?}");
+                        for face in PAGE_FACES {
+                            assert!(
+                                detail.contains(face),
+                                "{iri} as={unknown:?}: detail {detail:?} omits {face}"
+                            );
+                        }
+                    }
+                    other => panic!("{iri} as={unknown:?} was not refused: {other:?}"),
+                }
+            }
+        }
+    }
+
+    /// A face is matched on its essence: a media-type parameter (`charset`) and ASCII
+    /// case are not a different face (RFC 9110 §8.3.1), so they still serve.
+    #[test]
+    fn a_face_with_a_parameter_or_other_case_still_serves() {
+        for (asked, served) in [
+            ("text/plain; charset=utf-8", "text/plain"),
+            ("Text/HTML", "text/html"),
+            (" application/json ", "application/json"),
+        ] {
+            let rep = try_source(
+                "urn:runbook:basics",
+                ArgRef::Inline(asked.as_bytes().to_vec()),
+            )
+            .unwrap_or_else(|e| panic!("as={asked:?} refused: {e}"));
+            assert_eq!(rep.repr_type.media_type, served, "as={asked:?}");
+        }
+    }
+
+    /// An `as` that is present but unusable (by reference rather than inline) is refused
+    /// too, rather than read as absent and answered with the default face.
+    #[test]
+    fn a_by_reference_as_is_refused_not_defaulted() {
+        let by_ref = ArgRef::Reference(Iri::parse("urn:data:ik-context").unwrap());
+        match try_source("urn:runbook:basics", by_ref) {
+            Err(Error::InvalidArgument { name, .. }) => assert_eq!(name, "as"),
+            other => panic!("a by-reference `as` was not refused: {other:?}"),
+        }
     }
 
     /// The motivating case: a host that cannot serve `urn:lisp:eval` hides the Lisp tab,
