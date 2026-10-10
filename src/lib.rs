@@ -20,9 +20,12 @@
 #![forbid(unsafe_code)]
 
 use ikigai_core::{
-    ArgSpec, Description, EndpointSpace, Error, Exact, FnEndpoint, Invocation, ReprType,
+    space_iri, ArgSpec, Description, EndpointSpace, Error, Exact, FnEndpoint, Invocation, ReprType,
     Representation, Result, Verb,
 };
+
+/// The name [`space`] claims: `urn:iki:space:runbook`.
+pub const SPACE_ID: &str = "urn:iki:space:runbook";
 
 /// The datatype of a by-value scalar input, as the manifold declares it.
 const XSD_STRING: &str = "http://www.w3.org/2001/XMLSchema#string";
@@ -589,6 +592,11 @@ const IK_CONTEXT: &str =
 /// The runbook space: binds `urn:runbook:<id>` for every `Demo` (private). Mount it in any
 /// kernel's root (the CLI's embedded space, the in-browser kernel) and the whole
 /// runbook is available, identically.
+///
+/// It names itself [`SPACE_ID`]: building it reads nothing and allocates no state, so every
+/// call holds the same doors. The tab strip a page renders reads [`add_tab`]/[`hide_tab`]
+/// state at RENDER time, not here, and the pages are served live for exactly that reason,
+/// so no cache entry shared under the name can carry a stale strip.
 pub fn space() -> EndpointSpace {
     let mut space = EndpointSpace::new();
     for demo in DEMOS {
@@ -748,7 +756,8 @@ pub fn space() -> EndpointSpace {
                 ],
             )),
         );
-    space
+    // Named LAST: since ikigai-core 0.1.89 a later `bind` drops the name.
+    space.named(space_iri("runbook"))
 }
 
 /// Build an action endpoint's self-description: a Source/Meta endpoint whose every input is

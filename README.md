@@ -114,7 +114,8 @@ whatever does not resolve — was considered and deferred.
 ```rust
 use ikigai_core::Kernel; // or however the host assembles its root space
 
-// Mount the whole runbook into a kernel's root space.
+// Mount the whole runbook into a kernel's root space. It names itself
+// `urn:iki:space:runbook` (`ikigai_runbook::SPACE_ID`).
 let space = ikigai_runbook::space();
 
 // Resolve a page as htmx HTML (the browser adapter swaps it into #runbook):
@@ -129,7 +130,7 @@ let space = ikigai_runbook::space();
 `tests/conformance.rs` runs [`ikigai-conformance`](https://github.com/ikigai-rs/ikigai-conformance)
 over `space()` with **no opt-outs**: every check, every endpoint (21), clean. Declarations: the
 six constant graphs are `pure` + `cacheable`; `http://example.org/` is the registered namespace
-(above). What the suite cannot see is pinned by hand in the same file — the declared faces are
+(above); `space()` is self-named `urn:iki:space:runbook` (`SPACE_ID`). What the suite cannot see is pinned by hand in the same file — the declared faces are
 the faces served (both directions, from `as`'s `one_of`), the pages are live by decision, a
 required toy input is required, and a shape's `sh:path` / `sh:targetClass` targets are defined
 terms.
