@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.2.1"  # a page refuses an `as` outside PAGE_FACES with InvalidArgument instead of serving HTML (ledger #210)
+version = "0.2.2"  # the SHACL demo names rudof as the browser default, shacl-engine the alternative (ledger #745)
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
