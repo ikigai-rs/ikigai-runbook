@@ -396,7 +396,8 @@ static DEMOS: &[Demo] = &[
                 have, their types and cardinalities. `urn:shacl:validate` takes the `data` \
                 (piped) and a `shapes` graph (a resource you point at); the report is itself \
                 a graph, or JSON `{conforms, violations}`. Same resource, **two engines**: \
-                rudof (Rust) in the CLI, shacl-engine (JS) in the browser — parity-tested to \
+                rudof (Rust) — native in the CLI, a wasm module and the default in the \
+                browser — and shacl-engine (JS), the browser's alternative, parity-tested to \
                 agree. A good Account conforms; a broken one is reported; and the kernel \
                 validates its *own* catalog against an `ik:Endpoint` shape (dogfooding).",
         steps: &[
@@ -519,7 +520,8 @@ static DEMOS: &[Demo] = &[
 
 /// SHACL demo resources, served as `urn:data:<id>` (Turtle) — the shapes + good/bad data the
 /// SHACL demo points at. `urn:shacl:validate` sources `shapes` by reference, so these are just
-/// resources like any other (rudof natively, shacl-engine in the browser — same results).
+/// resources like any other (rudof natively and, by default, as a wasm module in the browser;
+/// shacl-engine there too on request — same results).
 ///
 /// Every node is named, property shapes included: a blank `sh:property [ … ]` is the
 /// textbook spelling, but a graph this module serves is skolemized like any other (a

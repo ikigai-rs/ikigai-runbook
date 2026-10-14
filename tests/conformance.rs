@@ -39,7 +39,10 @@
 //!   time, and the pages are live because of it), so every call holds the same
 //!   doors and it claims `urn:iki:space:runbook` ([`ikigai_runbook::SPACE_ID`]).
 //!
-//! No opt-outs; NAMES runs (every id is kebab-case).
+//! No opt-outs; NAMES runs (every id is kebab-case). No `Suite::own`: the
+//! kernel is `space()` alone, so every endpoint walked is this module's own
+//! and nothing is inherited. No `required_on_mutating`: there is no Sink or
+//! Delete to hold to it.
 //!
 //! ## What the suite cannot hold and this file pins by hand
 //!
@@ -48,11 +51,17 @@
 //!   0.1.0 compares only RDF faces, and only once declared (PENDING
 //!   #11/#31/#79). The `text/plain` and `application/json` faces were served
 //!   under `as=` for thirteen releases with `text/html` as the only output.
-//! - **A required input is required** ([`a_toy_action_refuses_a_missing_input`]):
+//! - **A required input is refused BY NAME** ([`a_toy_action_refuses_a_missing_input`]):
 //!   the kernel checks ArgSpecs only in `urn:kernel:validate`, never at
 //!   dispatch, so an endpoint that quietly ran without a required input made
 //!   the manifold lie the other way (PENDING #49). All three did, with
-//!   placeholder defaults, until this arc.
+//!   placeholder defaults, until that arc. Since `ikigai-conformance` 0.8.0 the
+//!   suite's REQUIRED check holds the general rule (each required input
+//!   dropped is refused, typed: `MissingArgument` or `InvalidArgument`), and it
+//!   is not vacuous here: making `greet` default a missing `who` is a REQUIRED
+//!   finding. The hand test stays for the stricter half the suite does not
+//!   pin: the refusal is `MissingArgument` naming exactly the input dropped,
+//!   and the full call echoes every value it was given.
 //! - **A shape's `sh:path` / `sh:targetClass` objects are terms too**
 //!   ([`the_shapes_are_skolemized_and_reference_only_defined_terms`]):
 //!   VOCABULARY sees predicates and `rdf:type` objects, so the `ik:` terms the
