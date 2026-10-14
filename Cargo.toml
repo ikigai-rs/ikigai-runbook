@@ -21,6 +21,7 @@ serde_json = "1"
 # block_on for the kernel-resolution tests (the hosts resolve; the tests should too).
 futures = "0.3"
 # The module recipe as one test (`tests/conformance.rs`): every endpoint this crate
-# binds, every action each declares, every checkable rule at once. 0.6.0 adds SPACE-NAME
-# (`self_named_space`). A 0.x caret is a ceiling too: "0.6.0" admits no 0.7.
-ikigai-conformance = "0.6.0"
+# binds, every action each declares, every checkable rule at once. 0.6.0 added SPACE-NAME
+# (`self_named_space`), 0.7.0 VALIDATE, 0.8.0 REQUIRED. A 0.x caret is a ceiling too:
+# "0.8.0" admits no 0.9.
+ikigai-conformance = "0.8.0"
