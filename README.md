@@ -135,6 +135,13 @@ the faces served (both directions, from `as`'s `one_of`), the pages are live by 
 required toy input is required, and a shape's `sh:path` / `sh:targetClass` targets are defined
 terms.
 
+## Accessibility
+
+The pages target WCAG 2.2 AA for the markup and text this crate emits, and make no conformance
+claim. [ACCESSIBILITY.md](ACCESSIBILITY.md) says what has been checked (one axe run over every
+page's HTML), what has not (no screen reader, no host's styling, no check in CI), and the barriers
+known today. Report a barrier with an issue labeled `accessibility`.
+
 ## License
 
 Licensed under `MIT OR Apache-2.0`.
