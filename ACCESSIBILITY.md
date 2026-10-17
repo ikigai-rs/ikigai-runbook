@@ -72,7 +72,7 @@ not run in CI and gates nothing.
 
 | Check | Version | What it covers | What it does not cover |
 |---|---|---|---|
-| Unit tests in `src/lib.rs` (`cargo test`) | none | The faces each page serves, and the tab strip: a hidden tab is gone from both the HTML and the text strip, and when the active page is hidden no tab carries `aria-selected="true"` | Any other accessibility property; nothing asserts roles, names or the output region |
+| Unit tests in `src/lib.rs` (`cargo test`) | none | The faces each page serves, and the tab strip: a hidden tab is gone from both the HTML and the text strip, and when the active page is hidden no tab carries `aria-selected="true"` | Any other accessibility property; the tab strip's roles, roving tabindex and `aria-controls`, the panel's heading and `aria-labelledby`, step names, the status line and inline code are asserted on the markup (no browser, no keyboard) |
 | axe-core in Google Chrome over every page's HTML face (a one-off script, not in this repository) | axe-core 4.10.3, playwright-core 1.63.0, Chrome 153.0.8010.54 on macOS | The 12 pages, each fragment rendered through a kernel and placed in a minimal page (`lang`, a title, a `<main>`, a heading, a named `<section id="runbook">`), the way a host embeds it. All of axe's rules | Any host's styling (the fragment has none, so color and size results say nothing); the page after a step has run (the output region was empty); a tab switch |
 | Tab walk, same run | as above | Which controls take focus, in order, on each page: every tab, then every step, then "clear output" (15 to 24 stops a page) | Arrow keys; Enter and Space; focus after activation |
 
@@ -96,17 +96,12 @@ terminal with assistive technology.
 
 ## Known limitations
 
-From reading the source on 2026-10-15; the axe run reported none of these.
+From reading the source on 2026-10-15 and 2026-10-17; the axe run reported none of these.
 
 | Barrier or gap | Where | Impact | Workaround |
 |---|---|---|---|
-| Choosing a tab swaps the whole `#runbook`, the tab strip included (`hx-target="#runbook"`), so the tab button that had focus is replaced and focus is lost (SC 2.4.3). Not measured in a host | every tab | A keyboard or screen-reader user starts again from the top of the page after each tab | none |
-| The tab strip announces itself as tabs but does not behave like them: every tab is a Tab stop and the arrow keys do nothing, the tabs have no `aria-controls`, and the tab panel has no name (no `aria-labelledby`) | the tab strip and panel on every page | A screen-reader user who hears "tab" may expect the arrow keys to move between tabs; reaching the steps takes a Tab past every tab; the panel is announced without saying which page it is | Tab and Enter work on every tab |
-| `role="tablist"` sits on a `<nav>`, which replaces its navigation landmark | the tab strip | The runbook's navigation does not appear in a landmark list | none |
-| The output region is a polite live region that each step appends to, so each answer is announced in full, however long | the output under the steps | A long answer (Turtle, JSON-LD) is read out entirely, and the next action waits for it | "clear output" between steps |
-| A step's button is named by a short label ("pipe", "host info"); the command it runs is beside it in `<code>`, not in its name | every step | A screen-reader user tabbing through steps hears the label without the command | Reading the list in order |
-| Intros and notes carry Markdown backticks, shown as characters rather than as code | most pages | A screen reader may read out "backtick", or the command reads run together with the prose | none |
-| The fragment has no heading of its own | every page | The page's subject is only the selected tab's name | The selected tab |
+| Untested in a browser: after a tab swap, focus returns to the new tab only if htmx restores focus by element id (it does by default; no host has been checked), and the arrow-key handler is an inline `hx-on:keydown` that needs htmx 2 and a host whose content security policy allows it. Tabs a host adds with `add_tab` also carry `aria-controls="rb-panel"`, which dangles if the host's panel has another id | the tab strip | Focus or arrow keys may not work in a host that differs from the assumptions | Tab and Enter work on every tab |
+| The status line ("Ran <label>", "Output cleared") is set by an inline `hx-on::after-request` handler; the output region is no longer announced, so a screen-reader user reaches the answer by moving to the "Output" region | the steps and the output | The answer is not read out on its own | Move to the Output region after running a step |
 
 No list like this is complete. Please report what you find.
 
@@ -183,6 +178,7 @@ a reported barrier is fixed, and before any conformance claim.
 | Date | Change | Evidence |
 |---|---|---|
 | 2026-10-15 | This file, from one axe run over every page's HTML face and a Tab walk | this pull request |
+| 2026-10-17 | Tabs follow the APG pattern; navigation landmark kept; heading added; step names carry the command; backticks render as code; output no longer a live region (ledger #1643) | unit tests on the markup; no browser or assistive-technology run |
 
 ## References
 

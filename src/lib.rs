@@ -821,6 +821,25 @@ fn render(demo: &Demo, inv: &Invocation<'_>) -> Result<Representation> {
     }
 }
 
+/// Prose for the HTML face: escaped, with each backtick pair turned into `<code>`. An
+/// unpaired backtick stays a literal character.
+fn prose(s: &str) -> String {
+    let parts: Vec<&str> = s.split('`').collect();
+    let mut out = String::new();
+    for (i, part) in parts.iter().enumerate() {
+        if i % 2 == 1 && i + 1 < parts.len() {
+            out.push_str(&format!("<code>{}</code>", esc(part)));
+        } else {
+            // Text between pairs; an unpaired final tick is kept as a character.
+            if i > 0 && i % 2 == 1 {
+                out.push('`');
+            }
+            out.push_str(&esc(part));
+        }
+    }
+    out
+}
+
 /// Minimal HTML escaping for command strings embedded in `hx-get` attributes and
 /// `<code>` — commands carry `"`, `|`, `<`, `&` that would otherwise break the markup.
 fn esc(s: &str) -> String {
@@ -957,26 +976,44 @@ pub fn render_tab_strip(active: &str) -> String {
     let hidden = snapshot_hidden();
     let extra = snapshot_extra();
 
-    let mut tabs = String::from("<nav class=\"rb-tabs\" role=\"tablist\">");
-    let builtin = DEMOS
+    let all: Vec<(String, String)> = DEMOS
         .iter()
-        .map(|d| (d.id.to_string(), d.label.to_string()));
-    for (id, label) in builtin.chain(extra) {
-        if hidden.contains(&id) {
-            continue;
-        }
+        .map(|d| (d.id.to_string(), d.label.to_string()))
+        .chain(extra)
+        .filter(|(id, _)| !hidden.contains(id))
+        .collect();
+    // Roving tabindex: the selected tab is the one Tab stop of the strip; with none
+    // selected (the active page is hidden) the first tab stands in, so the strip stays
+    // reachable.
+    let stop = all.iter().position(|(id, _)| id == active).unwrap_or(0);
+
+    // The landmark is the `<nav>`; the tabs sit in a `tablist` inside it. Arrow keys, Home
+    // and End move focus along the tabs (activation stays on Enter and Space), and each
+    // tab has a stable id so htmx puts focus back on it after the swap replaces the strip.
+    let mut tabs = String::from(
+        "<nav class=\"rb-tabs\" aria-label=\"Runbook pages\">\
+         <div role=\"tablist\" aria-label=\"Runbook pages\" \
+         hx-on:keydown=\"var t=[...this.querySelectorAll('[role=tab]')],i=t.indexOf(document.activeElement),k=event.key;\
+         if(i<0)return;\
+         if(k=='ArrowRight')i=(i+1)%t.length;else if(k=='ArrowLeft')i=(i+t.length-1)%t.length;\
+         else if(k=='Home')i=0;else if(k=='End')i=t.length-1;else return;\
+         event.preventDefault();t[i].focus()\">",
+    );
+    for (n, (id, label)) in all.iter().enumerate() {
         let selected = id == active;
         tabs.push_str(&format!(
-            "<button role=\"tab\" class=\"rb-tab{cls}\" aria-selected=\"{sel}\" \
+            "<button role=\"tab\" id=\"rb-tab-{id}\" class=\"rb-tab{cls}\" \
+             aria-selected=\"{sel}\" aria-controls=\"rb-panel\" tabindex=\"{ti}\" \
              hx-get=\"/k/source urn:runbook:{id} as=text/html\" \
              hx-target=\"#runbook\" hx-swap=\"innerHTML\">{label}</button>",
             cls = if selected { " selected" } else { "" },
             sel = selected,
-            id = esc(&id),
-            label = esc(&label),
+            ti = if n == stop { 0 } else { -1 },
+            id = esc(id),
+            label = esc(label),
         ));
     }
-    tabs.push_str("</nav>");
+    tabs.push_str("</div></nav>");
     tabs
 }
 
@@ -991,24 +1028,33 @@ fn render_html(active: &Demo) -> String {
     for step in active.steps {
         let cmd = esc(step.cmd);
         steps.push_str(&format!(
-            "<li><button class=\"rb-step\" hx-get=\"/k/{cmd}\" hx-target=\"#rb-out\" \
-             hx-swap=\"beforeend\">{label}</button> <code class=\"rb-cmd\">{cmd}</code>\
+            "<li><button class=\"rb-step\" aria-label=\"{label}: {cmd}\" \
+             hx-get=\"/k/{cmd}\" hx-target=\"#rb-out\" hx-swap=\"beforeend\" \
+             hx-on::after-request=\"document.getElementById('rb-status').textContent='Ran '+this.textContent\">\
+             {label}</button> <code class=\"rb-cmd\">{cmd}</code>\
              <span class=\"rb-note\">{note}</span></li>",
             label = esc(step.label),
-            note = esc(step.note),
+            note = prose(step.note),
         ));
     }
     steps.push_str("</ol>");
 
     format!(
-        "{tabs}<section class=\"rb-panel\" role=\"tabpanel\">\
+        "{tabs}<section id=\"rb-panel\" class=\"rb-panel\" role=\"tabpanel\" \
+         aria-labelledby=\"rb-heading\" tabindex=\"0\">\
+         <h2 id=\"rb-heading\" class=\"rb-heading\">{title}</h2>\
          <p class=\"rb-intro\">{intro}</p>{steps}\
          <div class=\"rb-outbar\">\
            <button class=\"rb-clear\" hx-get=\"/k/clear\" hx-target=\"#rb-out\" \
-             hx-swap=\"innerHTML\">clear output</button>\
+             hx-swap=\"innerHTML\" \
+             hx-on::after-request=\"document.getElementById('rb-status').textContent='Output cleared'\">\
+             clear output</button>\
          </div>\
-         <pre id=\"rb-out\" class=\"rb-out\" aria-live=\"polite\"></pre></section>",
-        intro = esc(active.intro),
+         <p id=\"rb-status\" class=\"rb-status\" role=\"status\"></p>\
+         <pre id=\"rb-out\" class=\"rb-out\" role=\"region\" aria-label=\"Output\" tabindex=\"0\"></pre>\
+         </section>",
+        title = esc(active.label),
+        intro = prose(active.intro),
     )
 }
 
@@ -1068,6 +1114,60 @@ mod tests {
         let kernel = Kernel::new(Arc::new(space()));
         let rep = block_on(kernel.issue(request, &Capability::root())).unwrap();
         String::from_utf8(rep.bytes).unwrap()
+    }
+
+    /// Ledger #1643: the structure of the HTML face (tabs pattern, landmark, heading,
+    /// button names, output region, inline code).
+    #[test]
+    fn the_html_face_follows_the_tabs_pattern() {
+        let _guard = serial();
+        let html = source("urn:runbook:basics", "text/html");
+        // A landmark holding a tablist; arrow keys handled on it.
+        assert!(html.contains("<nav class=\"rb-tabs\" aria-label="));
+        assert!(html.contains("<div role=\"tablist\""));
+        assert!(!html.contains("<nav class=\"rb-tabs\" role="));
+        assert!(html.contains("ArrowRight"));
+        // Roving tabindex: exactly one tab is a Tab stop, the selected one.
+        assert_eq!(
+            html.matches("role=\"tab\"").count(),
+            html.matches("aria-controls=\"rb-panel\"").count()
+        );
+        assert_eq!(html.matches("tabindex=\"0\" hx-get=\"/k/source").count(), 1);
+        assert!(html.contains("id=\"rb-tab-basics\" class=\"rb-tab selected\" aria-selected=\"true\" aria-controls=\"rb-panel\" tabindex=\"0\""));
+        // The panel is named by a heading, which exists.
+        assert!(html.contains("id=\"rb-panel\""));
+        assert!(html.contains("aria-labelledby=\"rb-heading\""));
+        assert!(html.contains("<h2 id=\"rb-heading\" class=\"rb-heading\">Basics</h2>"));
+        // Step names carry the command.
+        for step in DEMOS[0].steps {
+            assert!(html.contains(&format!(
+                "aria-label=\"{}: {}\"",
+                esc(step.label),
+                esc(step.cmd)
+            )));
+        }
+        // No live region that announces whole answers; a status line does the announcing.
+        assert!(!html.contains("aria-live"));
+        assert!(html.contains("<p id=\"rb-status\" class=\"rb-status\" role=\"status\">"));
+        // Backticks become code, not characters.
+        assert!(!html.contains('`'));
+        assert!(html.contains("<code>|</code>"));
+    }
+
+    /// With the active page hidden, the first tab is still a Tab stop.
+    #[test]
+    fn a_strip_with_nothing_selected_keeps_one_tab_stop() {
+        let _guard = serial();
+        let strip = render_tab_strip("no-such-page");
+        assert_eq!(strip.matches("tabindex=\"0\"").count(), 1);
+        assert!(strip.contains("id=\"rb-tab-basics\" class=\"rb-tab\" aria-selected=\"false\" aria-controls=\"rb-panel\" tabindex=\"0\""));
+    }
+
+    #[test]
+    fn prose_pairs_backticks_and_escapes() {
+        assert_eq!(prose("a `<b>` c"), "a <code>&lt;b&gt;</code> c");
+        assert_eq!(prose("odd ` tick"), "odd ` tick");
+        assert_eq!(prose("`x` and `y"), "<code>x</code> and `y");
     }
 
     /// Ledger #1644: a tab label (or id) from untrusted input renders as text, not markup.
