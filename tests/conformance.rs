@@ -172,18 +172,19 @@ fn suite() -> Suite {
     for (id, _, _) in GRAPHS {
         suite = suite.pure(id).cacheable(id);
     }
-    suite
+    // The page script is a constant: a pure function of nothing.
+    suite.pure("runbook-script").cacheable("runbook-script")
 }
 
 /// The walk saw every endpoint `space()` binds — one Source action each; Meta is
-/// not an action — and skipped nothing. A twenty-second endpoint bound without a
+/// not an action — and skipped nothing. A twenty-third endpoint bound without a
 /// line here would be held to a weaker standard.
 fn assert_shape(report: &Report) {
     assert_eq!(
-        report.endpoints, 21,
-        "12 pages + 6 graphs + 3 toy actions: {report}"
+        report.endpoints, 22,
+        "12 pages + 1 script + 6 graphs + 3 toy actions: {report}"
     );
-    assert_eq!(report.actions, 21, "one Source each: {report}");
+    assert_eq!(report.actions, 22, "one Source each: {report}");
     assert_eq!(
         report.checks.skipped().count(),
         0,

@@ -592,6 +592,40 @@ foaf:Person rdfs:subClassOf schema:Person .\n";
 const IK_CONTEXT: &str =
     r#"{"@context":{"@vocab":"https://ikigai-rs.dev/ns#","ik":"https://ikigai-rs.dev/ns#"}}"#;
 
+/// The behavior the pages need, served as `urn:runbook:script` so no page carries inline
+/// JavaScript: arrow keys along the tab strip and the status line, both by delegation on
+/// the document (they survive htmx swaps). It needs neither `eval` nor `'unsafe-inline'`,
+/// so it holds under `htmx.config.allowEval = false` and a strict CSP. Loading it twice is
+/// harmless.
+const SCRIPT: &str = r#"(function () {
+  if (window.ikigaiRunbook) return;
+  window.ikigaiRunbook = true;
+  document.addEventListener('keydown', function (event) {
+    var list = event.target.closest && event.target.closest('[data-rb-keys="tabs"]');
+    if (!list) return;
+    var tabs = Array.prototype.slice.call(list.querySelectorAll('[role=tab]'));
+    var i = tabs.indexOf(document.activeElement);
+    var k = event.key;
+    if (i < 0) return;
+    if (k === 'ArrowRight') i = (i + 1) % tabs.length;
+    else if (k === 'ArrowLeft') i = (i + tabs.length - 1) % tabs.length;
+    else if (k === 'Home') i = 0;
+    else if (k === 'End') i = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    tabs[i].focus();
+  });
+  document.body.addEventListener('htmx:afterRequest', function (event) {
+    var el = event.target.closest && event.target.closest('[data-rb-status]');
+    var status = document.getElementById('rb-status');
+    if (el && status) status.textContent = el.getAttribute('data-rb-status');
+  });
+})();
+"#;
+
+/// Where a page loads [`SCRIPT`] from, in the `/k/` form the tabs use.
+const SCRIPT_SRC: &str = "/k/source urn:runbook:script";
+
 /// The runbook space: binds `urn:runbook:<id>` for every `Demo` (private). Mount it in any
 /// kernel's root (the CLI's embedded space, the in-browser kernel) and the whole
 /// runbook is available, identically.
@@ -632,6 +666,23 @@ pub fn space() -> EndpointSpace {
             ),
         );
     }
+    space = space.bind(
+        Exact::new("urn:runbook:script"),
+        FnEndpoint::new("runbook-script", |_inv: &Invocation<'_>| {
+            Ok(repr("text/javascript", SCRIPT.to_string()).cacheable())
+        })
+        .with_description(
+            Description::new("runbook-script")
+                .title("Runbook page script")
+                .summary(
+                    "The script the pages load: arrow keys along the tab strip and the \
+                     status line. No inline handlers, so it works without eval.",
+                )
+                .verb(Verb::Source)
+                .verb(Verb::Meta)
+                .output("text/javascript"),
+        ),
+    );
     // The JSON-LD demo's `compact` step compacts against this context by IRI — the context
     // is itself a resource (urn:jsonld:compact sources it). Bound here so the demo runs
     // identically in both frontends with no host-specific data.
@@ -993,11 +1044,7 @@ pub fn render_tab_strip(active: &str) -> String {
     let mut tabs = String::from(
         "<nav class=\"rb-tabs\" aria-label=\"Runbook pages\">\
          <div role=\"tablist\" aria-label=\"Runbook pages\" \
-         hx-on:keydown=\"var t=[...this.querySelectorAll('[role=tab]')],i=t.indexOf(document.activeElement),k=event.key;\
-         if(i<0)return;\
-         if(k=='ArrowRight')i=(i+1)%t.length;else if(k=='ArrowLeft')i=(i+t.length-1)%t.length;\
-         else if(k=='Home')i=0;else if(k=='End')i=t.length-1;else return;\
-         event.preventDefault();t[i].focus()\">",
+         data-rb-keys=\"tabs\">",
     );
     for (n, (id, label)) in all.iter().enumerate() {
         let selected = id == active;
@@ -1030,7 +1077,7 @@ fn render_html(active: &Demo) -> String {
         steps.push_str(&format!(
             "<li><button class=\"rb-step\" aria-label=\"{label}: {cmd}\" \
              hx-get=\"/k/{cmd}\" hx-target=\"#rb-out\" hx-swap=\"beforeend\" \
-             hx-on::after-request=\"document.getElementById('rb-status').textContent='Ran '+this.textContent\">\
+             data-rb-status=\"Ran {label}\">\
              {label}</button> <code class=\"rb-cmd\">{cmd}</code>\
              <span class=\"rb-note\">{note}</span></li>",
             label = esc(step.label),
@@ -1047,12 +1094,14 @@ fn render_html(active: &Demo) -> String {
          <div class=\"rb-outbar\">\
            <button class=\"rb-clear\" hx-get=\"/k/clear\" hx-target=\"#rb-out\" \
              hx-swap=\"innerHTML\" \
-             hx-on::after-request=\"document.getElementById('rb-status').textContent='Output cleared'\">\
+             data-rb-status=\"Output cleared\">\
              clear output</button>\
          </div>\
          <p id=\"rb-status\" class=\"rb-status\" role=\"status\"></p>\
          <pre id=\"rb-out\" class=\"rb-out\" role=\"region\" aria-label=\"Output\" tabindex=\"0\"></pre>\
-         </section>",
+         </section>\
+         <script src=\"{src}\"></script>",
+        src = SCRIPT_SRC,
         title = esc(active.label),
         intro = prose(active.intro),
     )
@@ -1126,7 +1175,7 @@ mod tests {
         assert!(html.contains("<nav class=\"rb-tabs\" aria-label="));
         assert!(html.contains("<div role=\"tablist\""));
         assert!(!html.contains("<nav class=\"rb-tabs\" role="));
-        assert!(html.contains("ArrowRight"));
+        assert!(html.contains("data-rb-keys=\"tabs\""));
         // Roving tabindex: exactly one tab is a Tab stop, the selected one.
         assert_eq!(
             html.matches("role=\"tab\"").count(),
@@ -1152,6 +1201,37 @@ mod tests {
         // Backticks become code, not characters.
         assert!(!html.contains('`'));
         assert!(html.contains("<code>|</code>"));
+    }
+
+    /// Ledger #1812: the faces carry no inline handlers (htmx evaluates `hx-on` with eval,
+    /// which `allowEval: false` and a strict CSP forbid); the behavior is a served script.
+    #[test]
+    fn the_html_face_has_no_inline_handlers() {
+        let _guard = serial();
+        for demo in DEMOS {
+            let html = source(&format!("urn:runbook:{}", demo.id), "text/html");
+            assert!(!html.contains("hx-on"), "{}: {html}", demo.id);
+            let tags: String = html
+                .split('>')
+                .filter_map(|t| t.split('<').nth(1))
+                .collect();
+            assert!(
+                !tags
+                    .split_whitespace()
+                    .any(|w| w.starts_with("on") && w.contains('=')),
+                "{}: inline on* attribute",
+                demo.id
+            );
+            assert!(!html.contains("javascript:"));
+            assert_eq!(html.matches("<script").count(), 1);
+            assert!(html.contains(&format!("<script src=\"{SCRIPT_SRC}\"></script>")));
+            assert!(html.contains("data-rb-status=\"Output cleared\""));
+        }
+        let strip = render_tab_strip("basics");
+        assert!(!strip.contains("hx-on") && !strip.contains("<script"));
+        let js = source("urn:runbook:script", "text/javascript");
+        assert!(js.contains("ArrowRight") && js.contains("htmx:afterRequest"));
+        assert!(!js.contains("eval(") && !js.contains("Function("));
     }
 
     /// With the active page hidden, the first tab is still a Tab stop.

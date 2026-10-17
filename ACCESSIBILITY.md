@@ -100,8 +100,8 @@ From reading the source on 2026-10-15 and 2026-10-17; the axe run reported none 
 
 | Barrier or gap | Where | Impact | Workaround |
 |---|---|---|---|
-| Untested in a browser: after a tab swap, focus returns to the new tab only if htmx restores focus by element id (it does by default; no host has been checked), and the arrow-key handler is an inline `hx-on:keydown` that needs htmx 2 and a host whose content security policy allows it. Tabs a host adds with `add_tab` also carry `aria-controls="rb-panel"`, which dangles if the host's panel has another id | the tab strip | Focus or arrow keys may not work in a host that differs from the assumptions | Tab and Enter work on every tab |
-| The status line ("Ran <label>", "Output cleared") is set by an inline `hx-on::after-request` handler; the output region is no longer announced, so a screen-reader user reaches the answer by moving to the "Output" region | the steps and the output | The answer is not read out on its own | Move to the Output region after running a step |
+| Untested in a browser: after a tab swap, focus returns to the new tab only if htmx restores focus by element id (it does by default; no host has been checked), and the arrow-key handler is in a script the page loads (`urn:runbook:script`, no inline handlers, so no `eval`), which a host must let load from its own origin and which no browser has run. Tabs a host adds with `add_tab` also carry `aria-controls="rb-panel"`, which dangles if the host's panel has another id | the tab strip | Focus or arrow keys may not work in a host that differs from the assumptions | Tab and Enter work on every tab |
+| The status line ("Ran <label>", "Output cleared") is set by the same served script, from `data-rb-status` attributes; the output region is no longer announced, so a screen-reader user reaches the answer by moving to the "Output" region | the steps and the output | The answer is not read out on its own | Move to the Output region after running a step |
 
 No list like this is complete. Please report what you find.
 
@@ -179,6 +179,7 @@ a reported barrier is fixed, and before any conformance claim.
 |---|---|---|
 | 2026-10-15 | This file, from one axe run over every page's HTML face and a Tab walk | this pull request |
 | 2026-10-17 | Tabs follow the APG pattern; navigation landmark kept; heading added; step names carry the command; backticks render as code; output no longer a live region (ledger #1643) | unit tests on the markup; no browser or assistive-technology run |
+| 2026-10-17 | Inline `hx-on` handlers moved into the served `urn:runbook:script`, attached by delegation (ledger #1812) | unit tests on the markup and the script text; no browser run |
 
 ## References
 
