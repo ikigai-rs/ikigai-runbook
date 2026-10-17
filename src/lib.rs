@@ -972,6 +972,8 @@ pub fn render_tab_strip(active: &str) -> String {
              hx-target=\"#runbook\" hx-swap=\"innerHTML\">{label}</button>",
             cls = if selected { " selected" } else { "" },
             sel = selected,
+            id = esc(&id),
+            label = esc(&label),
         ));
     }
     tabs.push_str("</nav>");
@@ -992,8 +994,8 @@ fn render_html(active: &Demo) -> String {
             "<li><button class=\"rb-step\" hx-get=\"/k/{cmd}\" hx-target=\"#rb-out\" \
              hx-swap=\"beforeend\">{label}</button> <code class=\"rb-cmd\">{cmd}</code>\
              <span class=\"rb-note\">{note}</span></li>",
-            label = step.label,
-            note = step.note,
+            label = esc(step.label),
+            note = esc(step.note),
         ));
     }
     steps.push_str("</ol>");
@@ -1006,7 +1008,7 @@ fn render_html(active: &Demo) -> String {
              hx-swap=\"innerHTML\">clear output</button>\
          </div>\
          <pre id=\"rb-out\" class=\"rb-out\" aria-live=\"polite\"></pre></section>",
-        intro = active.intro,
+        intro = esc(active.intro),
     )
 }
 
@@ -1066,6 +1068,15 @@ mod tests {
         let kernel = Kernel::new(Arc::new(space()));
         let rep = block_on(kernel.issue(request, &Capability::root())).unwrap();
         String::from_utf8(rep.bytes).unwrap()
+    }
+
+    /// Ledger #1644: a tab label (or id) from untrusted input renders as text, not markup.
+    #[test]
+    fn a_tab_label_holding_markup_renders_as_text() {
+        add_tab("evil1644", "<script>alert(1)</script>\"&");
+        let html = source("urn:runbook:basics", "text/html");
+        assert!(!html.contains("<script>"), "label injected markup: {html}");
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;&quot;&amp;"));
     }
 
     fn button(id: &str) -> String {
