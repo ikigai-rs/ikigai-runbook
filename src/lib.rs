@@ -24,6 +24,7 @@ use ikigai_core::{
     space_iri, ArgSpec, Description, EndpointSpace, Error, Exact, FnEndpoint, Invocation, ReprType,
     Representation, Result, Verb,
 };
+use ikigai_fn::html::{attr, html_text};
 
 /// The name [`space`] claims: `urn:iki:space:runbook`.
 pub const SPACE_ID: &str = "urn:iki:space:runbook";
@@ -879,25 +880,16 @@ fn prose(s: &str) -> String {
     let mut out = String::new();
     for (i, part) in parts.iter().enumerate() {
         if i % 2 == 1 && i + 1 < parts.len() {
-            out.push_str(&format!("<code>{}</code>", esc(part)));
+            out.push_str(&format!("<code>{}</code>", html_text(part)));
         } else {
             // Text between pairs; an unpaired final tick is kept as a character.
             if i > 0 && i % 2 == 1 {
                 out.push('`');
             }
-            out.push_str(&esc(part));
+            out.push_str(&html_text(part));
         }
     }
     out
-}
-
-/// Minimal HTML escaping for command strings embedded in `hx-get` attributes and
-/// `<code>` — commands carry `"`, `|`, `<`, `&` that would otherwise break the markup.
-fn esc(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }
 
 fn repr(media: &str, body: String) -> Representation {
@@ -1056,8 +1048,8 @@ pub fn render_tab_strip(active: &str) -> String {
             cls = if selected { " selected" } else { "" },
             sel = selected,
             ti = if n == stop { 0 } else { -1 },
-            id = esc(id),
-            label = esc(label),
+            id = attr(id),
+            label = html_text(label),
         ));
     }
     tabs.push_str("</div></nav>");
@@ -1073,14 +1065,16 @@ fn render_html(active: &Demo) -> String {
 
     let mut steps = String::from("<ol class=\"rb-steps\">");
     for step in active.steps {
-        let cmd = esc(step.cmd);
+        let cmd_attr = attr(step.cmd);
+        let cmd_text = html_text(step.cmd);
+        let label_attr = attr(step.label);
         steps.push_str(&format!(
-            "<li><button class=\"rb-step\" aria-label=\"{label}: {cmd}\" \
-             hx-get=\"/k/{cmd}\" hx-target=\"#rb-out\" hx-swap=\"beforeend\" \
-             data-rb-status=\"Ran {label}\">\
-             {label}</button> <code class=\"rb-cmd\">{cmd}</code>\
+            "<li><button class=\"rb-step\" aria-label=\"{label_attr}: {cmd_attr}\" \
+             hx-get=\"/k/{cmd_attr}\" hx-target=\"#rb-out\" hx-swap=\"beforeend\" \
+             data-rb-status=\"Ran {label_attr}\">\
+             {label}</button> <code class=\"rb-cmd\">{cmd_text}</code>\
              <span class=\"rb-note\">{note}</span></li>",
-            label = esc(step.label),
+            label = html_text(step.label),
             note = prose(step.note),
         ));
     }
@@ -1102,7 +1096,7 @@ fn render_html(active: &Demo) -> String {
          </section>\
          <script src=\"{src}\"></script>",
         src = SCRIPT_SRC,
-        title = esc(active.label),
+        title = html_text(active.label),
         intro = prose(active.intro),
     )
 }
@@ -1191,8 +1185,8 @@ mod tests {
         for step in DEMOS[0].steps {
             assert!(html.contains(&format!(
                 "aria-label=\"{}: {}\"",
-                esc(step.label),
-                esc(step.cmd)
+                attr(step.label),
+                attr(step.cmd)
             )));
         }
         // No live region that announces whole answers; a status line does the announcing.
@@ -1257,6 +1251,36 @@ mod tests {
         let html = source("urn:runbook:basics", "text/html");
         assert!(!html.contains("<script>"), "label injected markup: {html}");
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;&quot;&amp;"));
+    }
+
+    /// A command holding `'` and `"` is escaped in the attributes and in the text.
+    #[test]
+    fn a_command_with_quotes_is_escaped_in_attribute_and_text() {
+        static STEPS: [Step; 1] = [Step {
+            label: "Q'\"",
+            cmd: "echo 'a' \"b\"",
+            note: "n",
+        }];
+        let demo = Demo {
+            id: "q",
+            label: "Q",
+            intro: "i",
+            steps: &STEPS,
+        };
+        let html = render_html(&demo);
+        assert!(
+            html.contains("hx-get=\"/k/echo &#39;a&#39; &quot;b&quot;\""),
+            "{html}"
+        );
+        assert!(
+            html.contains("aria-label=\"Q&#39;&quot;: echo &#39;a&#39; &quot;b&quot;\""),
+            "{html}"
+        );
+        assert!(
+            html.contains("<code class=\"rb-cmd\">echo &#39;a&#39; "),
+            "{html}"
+        );
+        assert!(!html.contains("echo 'a'"), "{html}");
     }
 
     fn button(id: &str) -> String {
