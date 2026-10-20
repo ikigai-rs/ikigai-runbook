@@ -177,7 +177,7 @@ fn suite() -> Suite {
 }
 
 /// The walk saw every endpoint `space()` binds — one Source action each; Meta is
-/// not an action — and skipped nothing. A twenty-third endpoint bound without a
+/// not an action — and skipped nothing but FAILURES. A twenty-third endpoint bound without a
 /// line here would be held to a weaker standard.
 fn assert_shape(report: &Report) {
     assert_eq!(
@@ -185,10 +185,16 @@ fn assert_shape(report: &Report) {
         "12 pages + 1 script + 6 graphs + 3 toy actions: {report}"
     );
     assert_eq!(report.actions, 22, "one Source each: {report}");
+    // FAILURES is off unless a suite opts in (`check_failures()`, the next wave); it
+    // is the only check allowed to be skipped.
     assert_eq!(
-        report.checks.skipped().count(),
-        0,
-        "every check runs: {report}"
+        report
+            .checks
+            .skipped()
+            .map(|c| c.to_string())
+            .collect::<Vec<_>>(),
+        ["FAILURES"],
+        "every check but FAILURES runs: {report}"
     );
 }
 
