@@ -1,7 +1,7 @@
-//! The module recipe as one test: `ikigai-conformance` walks the twenty-one
-//! endpoints [`ikigai_runbook::space`] binds — twelve `runbook-<id>` pages, six
-//! constant graphs (`urn:data:*`), three toy actions (`urn:action:*`) — and
-//! reports every violation at once.
+//! The module recipe as one test: `ikigai-conformance` walks the twenty-three
+//! endpoints [`ikigai_runbook::space`] binds — thirteen `runbook-<id>` pages,
+//! the page script, six constant graphs (`urn:data:*`), three toy actions
+//! (`urn:action:*`) — and reports every violation at once.
 //!
 //! ## The kernel is the module's own space, with nothing added
 //!
@@ -20,7 +20,7 @@
 //!   the kernel hangs every cacheable answer on since ikigai-core 0.1.73) —
 //!   correct, because a constant reads nothing anyone could cut — and the suite
 //!   rightly refuses to take that on faith, so it is declared.
-//! - **Nothing on the twelve pages.** They are served live (`Expiry::Always`)
+//! - **Nothing on the thirteen pages.** They are served live (`Expiry::Always`)
 //!   ON PURPOSE: the tab strip is process-global host state (`add_tab` /
 //!   `hide_tab`) that no golden thread tracks and no cut can reach, so a cached
 //!   page would serve a strip the host has since withdrawn.
@@ -82,9 +82,9 @@ use ikigai_core::{
 };
 use ikigai_runbook::PAGE_FACES;
 
-/// The twelve built-in pages, by tab id (`urn:runbook:<id>`, description
+/// The thirteen built-in pages, by tab id (`urn:runbook:<id>`, description
 /// `runbook-<id>`).
-const PAGES: [&str; 12] = [
+const PAGES: [&str; 13] = [
     "basics",
     "piping",
     "http",
@@ -93,6 +93,7 @@ const PAGES: [&str; 12] = [
     "linkeddata",
     "transrept",
     "sniff",
+    "bytes",
     "jsonld",
     "selection",
     "shacl",
@@ -177,14 +178,14 @@ fn suite() -> Suite {
 }
 
 /// The walk saw every endpoint `space()` binds — one Source action each; Meta is
-/// not an action — and skipped nothing but FAILURES. A twenty-third endpoint bound without a
+/// not an action — and skipped nothing but FAILURES. A twenty-fourth endpoint bound without a
 /// line here would be held to a weaker standard.
 fn assert_shape(report: &Report) {
     assert_eq!(
-        report.endpoints, 22,
-        "12 pages + 1 script + 6 graphs + 3 toy actions: {report}"
+        report.endpoints, 23,
+        "13 pages + 1 script + 6 graphs + 3 toy actions: {report}"
     );
-    assert_eq!(report.actions, 22, "one Source each: {report}");
+    assert_eq!(report.actions, 23, "one Source each: {report}");
     // FAILURES is off unless a suite opts in (`check_failures()`, the next wave); it
     // is the only check allowed to be skipped.
     assert_eq!(
