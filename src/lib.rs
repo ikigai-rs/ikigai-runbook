@@ -307,6 +307,56 @@ static DEMOS: &[Demo] = &[
         ],
     },
     Demo {
+        id: "bytes",
+        label: "Bytes",
+        intro: "Not every representation is text. `urn:compress:gzip` turns its input into \
+                `application/gzip` bytes, and `urn:decompress:gzip` turns them back. Both are \
+                registered transreptors, so the kernel can plan through gunzip without anyone \
+                naming it. A gzip stream records no media type, so whoever gunzips it says \
+                what the bytes are with `as` (the default is `application/octet-stream`). And \
+                because a few hundred bytes of gzip can expand to gigabytes, gunzip stops at \
+                `max-bytes`: past the limit it refuses, naming the limit, rather than handing \
+                back a truncated answer that looks whole.",
+        steps: &[
+            Step {
+                label: "gzip → not text",
+                cmd: "source urn:compress:gzip hello hello hello",
+                note: "the output is gzip bytes, not UTF-8, so it is refused here with its \
+                       size rather than printed as garbage; a `sink` would store it as it is",
+            },
+            Step {
+                label: "what are these bytes?",
+                cmd: "source urn:compress:gzip hello hello hello | urn:sniff",
+                note: "application/gzip, read from the stream's first two bytes",
+            },
+            Step {
+                label: "gzip, then gunzip",
+                cmd: "source urn:compress:gzip hello hello hello \
+                      | urn:decompress:gzip as=text/plain",
+                note: "the same 17 bytes back; `as` says they are text/plain, because gzip \
+                       does not record a type",
+            },
+            Step {
+                label: "gunzip, unnamed",
+                cmd: "source urn:compress:gzip hello hello hello | urn:transrept:auto as=text/plain",
+                note: "sniffs application/gzip, and the kernel picks `urn:decompress:gzip` \
+                       as the transreptor to text/plain; nobody named it",
+            },
+            Step {
+                label: "at the bound → ok",
+                cmd: "source urn:compress:gzip hello hello hello \
+                      | urn:decompress:gzip max-bytes=17 as=text/plain",
+                note: "17 bytes out, a limit of 17: allowed",
+            },
+            Step {
+                label: "past the bound → refused",
+                cmd: "source urn:compress:gzip hello hello hello \
+                      | urn:decompress:gzip max-bytes=16 as=text/plain",
+                note: "refused, naming the 16-byte limit: no truncated answer that looks whole",
+            },
+        ],
+    },
+    Demo {
         id: "jsonld",
         label: "JSON-LD",
         intro: "JSON-LD is RDF that reads as ordinary JSON. The same catalog graph runs \

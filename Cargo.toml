@@ -26,3 +26,8 @@ futures = "0.3"
 # (`self_named_space`), 0.7.0 VALIDATE, 0.8.0 REQUIRED, 0.9.0 contract shape + RECOMPUTE, 0.10.0 FAILURES (off). A 0.x caret is a ceiling too:
 # "0.10.0" admits no 0.11.
 ikigai-conformance = "0.10.0"
+# The Bytes demo's steps, run through the real REPL engine over the modules they name
+# (`tests/bytes_demo.rs`): pipe routing lives in the engine, so only the engine shows it.
+ikigai-engine = "0.1.69"
+ikigai-compress = "0.2.0"
+ikigai-sniff = "0.2.6"

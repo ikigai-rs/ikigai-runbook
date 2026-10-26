@@ -51,6 +51,7 @@ to the in-crate table — no per-host code, in either frontend.
 | `urn:runbook:linkeddata` | Linked Data | `urn:rdf:transrept` to Turtle; cacheability flowing down the pipe |
 | `urn:runbook:transrept` | Transreption | one graph, many syntaxes — N-Triples, RDF/XML, JSON-LD, an HTML table |
 | `urn:runbook:sniff` | Sniff & dispatch | `urn:sniff` types opaque bytes; `urn:transrept:auto` routes to the transreptor |
+| `urn:runbook:bytes` | Bytes | bytes that are not text; gzip and gunzip through `ikigai-compress`'s transreptors; `as` naming what gzip does not record; a `max-bytes` bound that refuses past its limit |
 | `urn:runbook:jsonld` | JSON-LD | expand / flatten / compact against a context that is itself a resource |
 | `urn:runbook:selection` | Selection | typed actions + `urn:kernel:actions types=…`; `rdfs:subClassOf` reasoning |
 | `urn:runbook:shacl` | SHACL | validate good and bad data against shapes; the kernel validates its own catalog |
@@ -73,6 +74,12 @@ no golden thread because there is nothing to cut. The Account demo lives under
 `http://example.org/`, the reserved example namespace, because it is a demo of validating
 *your* data; the endpoint shape is the runbook's own, under `urn:runbook:shape:*`, and is not a
 vocabulary term.
+
+The **Bytes** page needs two modules in the host's kernel: `ikigai-compress` (`urn:compress:gzip`,
+`urn:decompress:gzip`) and `ikigai-sniff` (`urn:sniff`, `urn:transrept:auto`). Both build for
+wasm. A host that does not link `ikigai-compress` should `hide_tab("bytes")`, the same as the Lisp
+tab below. `tests/bytes_demo.rs` runs every step of the page through the real REPL engine over
+those modules, so a step that stops doing what its note says is a red test.
 
 ## Host-extensible tabs — `add_tab` and `hide_tab`
 
@@ -128,7 +135,7 @@ let space = ikigai_runbook::space();
 ## Conformance
 
 `tests/conformance.rs` runs [`ikigai-conformance`](https://github.com/ikigai-rs/ikigai-conformance)
-over `space()` with **no opt-outs**: every check, every endpoint (21), clean. Declarations: the
+over `space()` with **no opt-outs**: every check, every endpoint (23), clean. Declarations: the
 six constant graphs are `pure` + `cacheable`; `http://example.org/` is the registered namespace
 (above); `space()` is self-named `urn:iki:space:runbook` (`SPACE_ID`). What the suite cannot see is pinned by hand in the same file — the declared faces are
 the faces served (both directions, from `as`'s `one_of`), the pages are live by decision, a

@@ -35,7 +35,7 @@ renders these pages owns how they look.
 ### In scope
 
 - **The HTML face** (`as=text/html`) of every page, `urn:runbook:basics` through
-  `urn:runbook:lisp`: the tab strip (`render_tab_strip`, also used by a host's own tabs), the panel
+  `urn:runbook:lisp` (the Bytes page, `urn:runbook:bytes`, included): the tab strip (`render_tab_strip`, also used by a host's own tabs), the panel
   with its intro, its numbered steps, the "clear output" button and the output region.
 - **The text face** (`as=text/plain`): the tab list with the active tab in brackets, the intro, and
   the numbered steps with their commands and notes.
@@ -77,7 +77,8 @@ not run in CI and gates nothing.
 | Tab walk, same run | as above | Which controls take focus, in order, on each page: every tab, then every step, then "clear output" (15 to 24 stops a page) | Arrow keys; Enter and Space; focus after activation |
 
 On 2026-10-15, against `main` at `158b6db`: axe reported no violations and nothing incomplete on
-any of the 12 pages.
+any of the 12 pages. The Bytes page (`urn:runbook:bytes`, added 2026-10-25) was not part of that
+run and has had no browser check.
 
 How the steps read, whether the notes explain enough, and how the output region sounds when a long
 answer arrives are for a person to judge, and none of that has been done.
@@ -180,6 +181,7 @@ a reported barrier is fixed, and before any conformance claim.
 | 2026-10-15 | This file, from one axe run over every page's HTML face and a Tab walk | this pull request |
 | 2026-10-17 | Tabs follow the APG pattern; navigation landmark kept; heading added; step names carry the command; backticks render as code; output no longer a live region (ledger #1643) | unit tests on the markup; no browser or assistive-technology run |
 | 2026-10-17 | Inline `hx-on` handlers moved into the served `urn:runbook:script`, attached by delegation (ledger #1812) | unit tests on the markup and the script text; no browser run |
+| 2026-10-25 | The Bytes page (`urn:runbook:bytes`, ledger #2259): the same tab, step and output markup as every page; its step labels are words, not symbols alone ("gzip, then gunzip"), and every step's command is run through the real engine by `tests/bytes_demo.rs` | unit tests on the markup and the engine test; no browser or assistive-technology run |
 
 ## References
 
