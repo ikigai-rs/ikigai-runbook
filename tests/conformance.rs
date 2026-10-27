@@ -178,7 +178,7 @@ fn suite() -> Suite {
 }
 
 /// The walk saw every endpoint `space()` binds — one Source action each; Meta is
-/// not an action — and skipped nothing but FAILURES. A twenty-fourth endpoint bound without a
+/// not an action — and skipped no check. A twenty-fourth endpoint bound without a
 /// line here would be held to a weaker standard.
 fn assert_shape(report: &Report) {
     assert_eq!(
@@ -186,16 +186,16 @@ fn assert_shape(report: &Report) {
         "13 pages + 1 script + 6 graphs + 3 toy actions: {report}"
     );
     assert_eq!(report.actions, 23, "one Source each: {report}");
-    // FAILURES is off unless a suite opts in (`check_failures()`, the next wave); it
-    // is the only check allowed to be skipped.
+    // Since ikigai-conformance 0.11.0 DATATYPES and FAILURES run by default, so no
+    // check may be skipped.
     assert_eq!(
         report
             .checks
             .skipped()
             .map(|c| c.to_string())
-            .collect::<Vec<_>>(),
-        ["FAILURES"],
-        "every check but FAILURES runs: {report}"
+            .collect::<Vec<String>>(),
+        Vec::<String>::new(),
+        "every check runs: {report}"
     );
 }
 

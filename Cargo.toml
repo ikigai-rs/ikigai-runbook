@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.2.2"  # the SHACL demo names rudof as the browser default, shacl-engine the alternative (ledger #745)
+version = "0.3.0"  # links ikigai-core 0.2 (the streams release, ledger #2261): core's types are in its API, so a breaking change
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
@@ -11,10 +11,12 @@ keywords = ["ikigai", "roc", "htmx", "hypermedia", "runbook"]
 categories = ["web-programming"]
 
 [dependencies]
-ikigai-core = "0.1.89"  # space_iri + bind-drops-the-name (SPACE-NAME, ledger #987); one_of/default_value were 0.1.34
+# 0.2.0 is the streams release (ledger #2261); the old 0.1 pin meant <0.2.0 under 0.x rules.
+# space_iri + bind-drops-the-name (SPACE-NAME, ledger #987) and one_of/default_value carried over.
+ikigai-core = "0.2.0"
 # Structured (application/json) representation for non-HTML hosts — the TUI sources
 # it to drive step-running by number.
-ikigai-fn = "0.5.0"  # ikigai_fn::html: the one escaping module (FND-H, ledger #1813)
+ikigai-fn = "0.7.0"  # ikigai_fn::html: the one escaping module (FND-H, ledger #1813); 0.7 is on core 0.2
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
@@ -23,11 +25,12 @@ serde_json = "1"
 futures = "0.3"
 # The module recipe as one test (`tests/conformance.rs`): every endpoint this crate
 # binds, every action each declares, every checkable rule at once. 0.6.0 added SPACE-NAME
-# (`self_named_space`), 0.7.0 VALIDATE, 0.8.0 REQUIRED, 0.9.0 contract shape + RECOMPUTE, 0.10.0 FAILURES (off). A 0.x caret is a ceiling too:
-# "0.10.0" admits no 0.11.
-ikigai-conformance = "0.10.0"
+# (`self_named_space`), 0.7.0 VALIDATE, 0.8.0 REQUIRED, 0.9.0 contract shape + RECOMPUTE, 0.10.0 FAILURES (off), 0.11.0 core 0.2 with
+# DATATYPES and FAILURES on by default. A 0.x caret is a ceiling too: "0.11.0" admits no 0.12.
+ikigai-conformance = "0.11.0"
 # The Bytes demo's steps, run through the real REPL engine over the modules they name
 # (`tests/bytes_demo.rs`): pipe routing lives in the engine, so only the engine shows it.
-ikigai-engine = "0.1.69"
-ikigai-compress = "0.2.0"
-ikigai-sniff = "0.2.6"
+# All three on core 0.2 (ledger #2261), so the tree links one core.
+ikigai-engine = "0.2.0"
+ikigai-compress = "0.3.0"
+ikigai-sniff = "0.3.1"
