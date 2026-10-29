@@ -26,8 +26,9 @@ futures = "0.3"
 # The module recipe as one test (`tests/conformance.rs`): every endpoint this crate
 # binds, every action each declares, every checkable rule at once. 0.6.0 added SPACE-NAME
 # (`self_named_space`), 0.7.0 VALIDATE, 0.8.0 REQUIRED, 0.9.0 contract shape + RECOMPUTE, 0.10.0 FAILURES (off), 0.11.0 core 0.2 with
-# DATATYPES and FAILURES on by default. A 0.x caret is a ceiling too: "0.11.0" admits no 0.12.
-ikigai-conformance = "0.11.0"
+# DATATYPES and FAILURES on by default, 0.12.0 BODIES and BODY-INPUTS on by default (ledger
+# #2559). A 0.x caret is a ceiling too: "0.12.0" admits no 0.13.
+ikigai-conformance = "0.12.0"
 # The Bytes demo's steps, run through the real REPL engine over the modules they name
 # (`tests/bytes_demo.rs`): pipe routing lives in the engine, so only the engine shows it.
 # All three on core 0.2 (ledger #2261), so the tree links one core.

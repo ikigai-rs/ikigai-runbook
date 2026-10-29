@@ -39,6 +39,14 @@
 //!   time, and the pages are live because of it), so every call holds the same
 //!   doors and it claims `urn:iki:space:runbook` ([`ikigai_runbook::SPACE_ID`]).
 //!
+//! - **`body_space`, the same `Arc` the kernel is built from.** BODIES (since
+//!   `ikigai-conformance` 0.12.0) compares an endpoint's `invoke` with its
+//!   collected `invoke_body` in the module space, which a kernel does not expose.
+//!   The seven constants are probed; the live pages and toy actions stay
+//!   unprobed by BODIES with the suite's own reason, and [`assert_shape`] pins
+//!   exactly that set. No argument declares `reads_body`, so BODY-INPUTS has
+//!   nothing to probe and the kernel needs no content store.
+//!
 //! No opt-outs; NAMES runs (every id is kebab-case). No `Suite::own`: the
 //! kernel is `space()` alone, so every endpoint walked is this module's own
 //! and nothing is inherited. No `required_on_mutating`: there is no Sink or
@@ -76,7 +84,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use ikigai_conformance::{rdf, Report, Suite};
+use ikigai_conformance::{rdf, Check, Report, Suite};
 use ikigai_core::{
     ArgRef, Capability, Error, Expiry, Iri, Kernel, Representation, Request, Thread, Verb,
 };
@@ -197,12 +205,46 @@ fn assert_shape(report: &Report) {
         Vec::<String>::new(),
         "every check runs: {report}"
     );
+    // Since ikigai-conformance 0.12.0 BODIES compares each deterministic Source's
+    // `invoke` with its collected `invoke_body` in the module space handed to
+    // `body_space`. The seven constants are probed; the thirteen pages and three
+    // toy actions are live by decision (the file docs say why), and an independent
+    // second call cannot establish agreement for a live answer, so the suite
+    // leaves exactly those unprobed, and only for BODIES. Without `body_space` all
+    // twenty-three are unprobed, so this assertion is what keeps the wiring on.
+    // No argument declares `reads_body`, so BODY-INPUTS has nothing to probe and
+    // needs no content store; one declared later would show here unprobed.
+    let unprobed: BTreeSet<(String, Check)> = report
+        .unprobed
+        .iter()
+        .map(|u| (u.endpoint.clone(), u.check))
+        .collect();
+    let live: BTreeSet<(String, Check)> = PAGES
+        .iter()
+        .map(|id| format!("runbook-{id}"))
+        .chain(["action-greet", "action-geocode", "action-mail"].map(String::from))
+        .map(|id| (id, Check::Bodies))
+        .collect();
+    assert_eq!(
+        unprobed, live,
+        "only the live endpoints go unprobed, and only by BODIES: {report}"
+    );
+    assert!(
+        report
+            .unprobed
+            .iter()
+            .all(|u| u.reason.contains("volatile")),
+        "each for being live, not for a missing module space: {report}"
+    );
 }
 
 #[test]
 fn conforms() {
-    let kernel = kernel();
-    let report = suite().run_blocking(&kernel);
+    // BODIES needs the module space itself, the same `Arc` the kernel is built
+    // from: core 0.2 exposes no kernel root-space accessor.
+    let space = Arc::new(ikigai_runbook::space());
+    let kernel = Kernel::new(space.clone());
+    let report = suite().body_space(space).run_blocking(&kernel);
     // Printed even when clean (`--nocapture`): the report is the record.
     eprintln!("{report}");
     assert!(report.is_clean(), "{report}");
