@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.3.0"  # links ikigai-core 0.2 (the streams release, ledger #2261): core's types are in its API, so a breaking change
+version = "0.3.1"  # updates the private ikigai-fn dependency to 0.8; no public API change (ledger #2621)
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
@@ -16,7 +16,7 @@ categories = ["web-programming"]
 ikigai-core = "0.2.0"
 # Structured (application/json) representation for non-HTML hosts — the TUI sources
 # it to drive step-running by number.
-ikigai-fn = "0.7.0"  # ikigai_fn::html: the one escaping module (FND-H, ledger #1813); 0.7 is on core 0.2
+ikigai-fn = "0.8.0"  # compose markers accept <iri> references; no literal =< values in shipped markers (ledger #2621)
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
