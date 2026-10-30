@@ -78,7 +78,11 @@ not run in CI and gates nothing.
 
 On 2026-10-15, against `main` at `158b6db`: axe reported no violations and nothing incomplete on
 any of the 12 pages. The Bytes page (`urn:runbook:bytes`, added 2026-10-25) was not part of that
-run and has had no browser check.
+run and has had no browser check. Nor have the five OWL 2 RL pages added 2026-10-30
+(`urn:runbook:vocabularies`, `typing`, `topics`, `thread` and `bounds`), or the six steps added
+to Selection that day: they use the same markup, and only `cargo test` has run over them. Their
+outputs can be long (a closure in Turtle, with OWL RL's `a owl:Thing` lines), which makes the
+known gap below, an answer that is not read out, larger on those pages.
 
 How the steps read, whether the notes explain enough, and how the output region sounds when a long
 answer arrives are for a person to judge, and none of that has been done.

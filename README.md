@@ -53,7 +53,12 @@ to the in-crate table — no per-host code, in either frontend.
 | `urn:runbook:sniff` | Sniff & dispatch | `urn:sniff` types opaque bytes; `urn:transrept:auto` routes to the transreptor |
 | `urn:runbook:bytes` | Bytes | bytes that are not text; gzip and gunzip through `ikigai-compress`'s transreptors; `as` naming what gzip does not record; a `max-bytes` bound that refuses past its limit |
 | `urn:runbook:jsonld` | JSON-LD | expand / flatten / compact against a context that is itself a resource |
-| `urn:runbook:selection` | Selection | typed actions + `urn:kernel:actions types=…`; `rdfs:subClassOf` reasoning |
+| `urn:runbook:selection` | Selection | typed actions + `urn:kernel:actions types=…`; `rdfs:subClassOf` reasoning through the host's built map, then the same question through the OWL 2 RL reasoner (`urn:reason:inferred`); an edit to the alignment that the reasoner follows and the built map does not, with the measured cost of each |
+| `urn:runbook:vocabularies` | Two vocabularies | `owl:equivalentClass` and `rdfs:subPropertyOf` between schema.org and FOAF terms: one SPARQL query over the closure finds people written in either |
+| `urn:runbook:typing` | Domain & range | an entity with no `rdf:type` typed by `rdfs:domain` / `rdfs:range`, then `urn:kernel:actions` selecting for those types |
+| `urn:runbook:topics` | Topics | a SKOS scheme; `skos:broaderTransitive` from the closure narrows tagged posts to everything under one topic |
+| `urn:runbook:thread` | The thread | edit one axiom: the cache tally (`2 cached · 1 computed`) shows only the closure that read it recomputing |
+| `urn:runbook:bounds` | Reasoner bounds | a closure past the reasoner's output bound, and an input past its input bound, refused as OverBudget, never truncated |
 | `urn:runbook:shacl` | SHACL | validate good and bad data against shapes; the kernel validates its own catalog |
 | `urn:runbook:lisp` | Lisp | `urn:lisp:eval`, verbs as functions, s-expr → RDF, signing, generated aliases |
 
@@ -66,6 +71,12 @@ the same demo with no host-specific data:
 | `urn:data:alignment` | `text/turtle` — `foaf:Person rdfs:subClassOf schema:Person` | Selection (the host folds it into the subclass closure) |
 | `urn:data:account-shape`, `urn:data:account-ok`, `urn:data:account-bad` | `text/turtle` — an Account shape and a conforming / violating instance, under `http://example.org/` | SHACL |
 | `urn:data:endpoint-shape` | `text/turtle` — `<urn:runbook:shape:endpoint>`, targeting `ik:Endpoint` / `ik:title` | SHACL (dogfood) |
+| `urn:data:alignment-edit`, `urn:data:people` | `text/turtle` — the alignment plus `ex:Customer rdfs:subClassOf foaf:Person`; `ex:ada a foaf:Person`, `ex:bob a ex:Customer` | Selection (the edit), The thread |
+| `urn:data:vocab-alignment`, `urn:data:people-mixed` | `text/turtle` — `foaf:Person owl:equivalentClass schema:Person`, `foaf:name rdfs:subPropertyOf schema:name`; one person in each vocabulary | Two vocabularies |
+| `urn:data:typing` | `text/turtle` — `schema:address` with a domain and a range, and an untyped `ex:carol` | Domain & range |
+| `urn:data:topics`, `urn:data:tagged` | `text/turtle` — a SKOS scheme (with SKOS's `broader ⊑ broaderTransitive` and transitivity axioms) and four posts tagged with its topics | Topics, The thread |
+| `urn:data:thread-graphs` | `text/plain` — the two graph IRIs the Thread page reasons over, one a line | The thread |
+| `urn:data:fan-small`, `urn:data:fan-large`, `urn:data:fan-over-input` | `text/turtle` — generated: one class under 3 / 150 / 150 superclasses with 4 / 840 / 851 members | Reasoner bounds |
 | `urn:action:greet`, `urn:action:geocode`, `urn:action:mail` | `text/plain` — toy actions whose inputs are typed `schema:Person` / `schema:PostalAddress` and **required** (a missing one is a typed `MissingArgument`) | Selection |
 
 Every graph is skolemized — the SHACL property shapes are named (`ex:AccountShape-owner`,
@@ -74,6 +85,28 @@ no golden thread because there is nothing to cut. The Account demo lives under
 `http://example.org/`, the reserved example namespace, because it is a demo of validating
 *your* data; the endpoint shape is the runbook's own, under `urn:runbook:shape:*`, and is not a
 vocabulary term.
+
+The **OWL 2 RL** steps (the end of Selection, and the five pages after it) need the
+reasoner in the host's kernel: `ikigai-reason` (`urn:reason:closure`, `urn:reason:inferred`;
+this crate tests against 0.3.3, its first published release) beside `ikigai-rdf`. Two vocabularies and Topics also
+query with `ikigai-sparql`, and the edits write files through `ikigai-fs` (`urn:file:*`), so a
+reasoner answer follows an edit only when the host's file mount is cacheable and the write goes
+through the kernel, which cuts the file's thread. `urn:sparql:select` reads its graphs by IRI,
+not from a pipe, so those two pages write the closure to a file and query that: a snapshot, run
+again after an edit. A host without the reasoner should `hide_tab` those five pages (Selection's
+first six steps need only the kernel). `tests/reasoning_demos.rs` runs every step of the six
+pages, in order, through the real REPL engine over those modules, with the host's built
+subclass map, and prints a transcript under `cargo test -- --nocapture`.
+
+The notes quote the measurements in `ikigai-reason`'s README ("Choosing: construction, a
+property path, or a reasoner", ledger #2640; native, release build). On raw time the built
+map wins in every measured graph (a rebuild after an edit is 2.6 to 13 times faster than the
+reasoner's recompute); the reasoner wins on coverage (`equivalentClass`, which the built map
+silently misses, `subPropertyOf`, domain/range, `inverseOf`) and on edits (a cut, no rebuild).
+The hybrid, reason once and build the map from the closure, needs a kernel rebuild that no step
+can perform, so Selection describes it in a note rather than running it. OWL RL also adds
+`x a owl:Thing` for every class and individual (and `owl:Thing a owl:Class`, …); the notes say
+which lines those are wherever `urn:reason:inferred` shows them.
 
 The **Bytes** page needs two modules in the host's kernel: `ikigai-compress` (`urn:compress:gzip`,
 `urn:decompress:gzip`) and `ikigai-sniff` (`urn:sniff`, `urn:transrept:auto`). Both build for
@@ -135,8 +168,8 @@ let space = ikigai_runbook::space();
 ## Conformance
 
 `tests/conformance.rs` runs [`ikigai-conformance`](https://github.com/ikigai-rs/ikigai-conformance)
-over `space()` with **no opt-outs**: every check, every endpoint (23), clean. Declarations: the
-six constant graphs are `pure` + `cacheable`; `http://example.org/` is the registered namespace
+over `space()` with **no opt-outs**: every check, every endpoint (39), clean. Declarations: the
+seventeen constant graphs are `pure` + `cacheable`; `http://example.org/` is the registered namespace
 (above); `space()` is self-named `urn:iki:space:runbook` (`SPACE_ID`). What the suite cannot see is pinned by hand in the same file — the declared faces are
 the faces served (both directions, from `as`'s `one_of`), the pages are live by decision, a
 required toy input is required, and a shape's `sh:path` / `sh:targetClass` targets are defined
