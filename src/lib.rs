@@ -339,8 +339,9 @@ static DEMOS: &[Demo] = &[
             Step {
                 label: "gunzip, unnamed",
                 cmd: "source urn:compress:gzip hello hello hello | urn:transrept:auto as=text/plain",
-                note: "sniffs application/gzip, and the kernel picks `urn:decompress:gzip` \
-                       as the transreptor to text/plain; nobody named it",
+                note: "the input is gzip, not text: asked only for text/plain, \
+                       `urn:transrept:auto` sniffs application/gzip and the kernel finds the \
+                       route through `urn:decompress:gzip` itself; nobody named gunzip",
             },
             Step {
                 label: "at the bound → ok",
