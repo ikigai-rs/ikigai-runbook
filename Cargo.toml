@@ -35,3 +35,12 @@ ikigai-conformance = "0.12.0"
 ikigai-engine = "0.2.0"
 ikigai-compress = "0.3.0"
 ikigai-sniff = "0.3.1"
+# The OWL 2 RL demos' steps (`tests/reasoning_demos.rs`), run through the same engine over
+# the modules a host links for them: the reasoner (pinned at its first published release,
+# ledger #2641), `ikigai-rdf` (its non-Turtle faces and `subclass_axioms`, which builds the
+# Selection demo's closure the way the hosts do), `ikigai-sparql` (one query over a closure)
+# and `ikigai-fs` (the file an edit is written to).
+ikigai-reason = "0.3.3"
+ikigai-rdf = "0.3.3"
+ikigai-sparql = "0.3.3"
+ikigai-fs = "0.3.0"

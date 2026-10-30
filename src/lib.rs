@@ -406,7 +406,12 @@ static DEMOS: &[Demo] = &[
                 PostalAddress, **mail** needs both. And it *reasons*: the host loads an \
                 alignment graph (`urn:data:alignment`) with `foaf:Person rdfs:subClassOf \
                 schema:Person`, so a `foaf:Person` entity satisfies the `schema:Person` \
-                action too — add one triple, gain an affordance.",
+                action too — add one triple, gain an affordance. That reasoning is a map the \
+                host BUILT from the alignment when it made the kernel. The later steps ask \
+                the same question of the OWL 2 RL reasoner (`urn:reason:inferred`), then \
+                edit the alignment: the reasoner's answer follows the edit, and the built \
+                map does not. On raw time the built map wins (the notes give the measured \
+                costs); the reasoner wins on coverage and on edits.",
         steps: &[
             Step {
                 label: "have a Person",
@@ -438,6 +443,271 @@ static DEMOS: &[Demo] = &[
                 label: "foaf:Person → greet  (subClassOf!)",
                 cmd: "source urn:kernel:actions types=http://xmlns.com/foaf/0.1/Person",
                 note: "no action requires foaf:Person — but it IS a schema:Person, so greet matches",
+            },
+            Step {
+                label: "the same question, reasoned",
+                cmd: "source urn:reason:inferred graph=urn:data:alignment,urn:data:people",
+                note: "ex:ada is a foaf:Person, so the reasoner entails `ex:ada a schema:Person`: \
+                       the same answer, now as a triple anyone can read. The `a owl:Thing` lines \
+                       are OWL RL typing every class and individual; nobody asked for them. \
+                       ex:bob is only an owl:Thing, because nothing says what an ex:Customer is. \
+                       Measured cold, natively (ikigai-reason's README, ledger #2640): the \
+                       reasoner took 0.10 ms for this one-axiom alignment, and building the map \
+                       took 33 µs",
+            },
+            Step {
+                label: "copy the alignment to a file",
+                cmd: "source urn:data:alignment | sink urn:file:alignment.ttl",
+                note: "a copy the next steps can edit: a write through the kernel cuts the \
+                       file's golden thread",
+            },
+            Step {
+                label: "reason over the file",
+                cmd: "source urn:reason:inferred graph=urn:file:alignment.ttl,urn:data:people",
+                note: "the same answer as two steps back, read from the file; run it twice and \
+                       the second is cached",
+            },
+            Step {
+                label: "edit: Customer ⊑ foaf:Person",
+                cmd: "source urn:data:alignment-edit | sink urn:file:alignment.ttl",
+                note: "the alignment gains `ex:Customer rdfs:subClassOf foaf:Person`; the write \
+                       cuts the file's thread, and everything computed from it",
+            },
+            Step {
+                label: "the reasoner follows",
+                cmd: "source urn:reason:inferred graph=urn:file:alignment.ttl,urn:data:people",
+                note: "the same request, computed again: ex:bob is now a foaf:Person and a \
+                       schema:Person. Nobody rebuilt anything. Measured cut + recompute: \
+                       0.17 ms for the one-axiom alignment, 6.8 ms for an 860-triple one",
+            },
+            Step {
+                label: "the built map does not",
+                cmd: "source urn:kernel:actions types=http://example.org/Customer",
+                note: "nothing: the host built its map from urn:data:alignment when it made the \
+                       kernel, and no edit reaches it. A rebuild would, and is faster: 36 µs \
+                       here and 1.64 ms for the 860-triple alignment, 2.6 to 13 times faster \
+                       than the reasoner in every measured graph. But a rebuild is host code, \
+                       a new kernel with an empty cache, and covers subClassOf only. The \
+                       HYBRID reasons once and builds the map from the closure: warm selection \
+                       as fast as the map (about 28 µs a call), the reasoner's coverage, 10.9 ms \
+                       an edit for the 860-triple alignment. A step cannot rebuild the host's \
+                       kernel, so this page describes the hybrid and does not run it",
+            },
+        ],
+    },
+    Demo {
+        id: "vocabularies",
+        label: "Two vocabularies",
+        intro: "Data arrives in more than one vocabulary. Here Ada is written with \
+                schema.org terms and Grace with FOAF terms, and a small alignment says how \
+                they meet: `foaf:Person owl:equivalentClass schema:Person` and `foaf:name \
+                rdfs:subPropertyOf schema:name`. A query in one vocabulary over the raw data \
+                finds only the people written in it. Over the OWL 2 RL closure, the same query \
+                finds both. The built subclass map the Selection page uses could not do this: \
+                it reads `subClassOf` only, so it silently misses `equivalentClass`, and it \
+                knows nothing of properties.",
+        steps: &[
+            Step {
+                label: "the alignment",
+                cmd: "source urn:data:vocab-alignment",
+                note: "two axioms: one between classes, one between properties",
+            },
+            Step {
+                label: "the data",
+                cmd: "source urn:data:people-mixed",
+                note: "ex:ada in schema.org terms, ex:grace in FOAF terms",
+            },
+            Step {
+                label: "query the raw data",
+                cmd: "source urn:sparql:select graph=urn:data:vocab-alignment,urn:data:people-mixed \
+                      query=\"SELECT ?who ?name WHERE { ?who a <https://schema.org/Person> ; \
+                      <https://schema.org/name> ?name } ORDER BY ?name\" as=text/csv",
+                note: "only Ada: Grace's type and name are FOAF terms the query does not name",
+            },
+            Step {
+                label: "what the reasoner adds",
+                cmd: "source urn:reason:inferred graph=urn:data:vocab-alignment,urn:data:people-mixed",
+                note: "ex:grace gains schema:Person and schema:name, and ex:ada gains \
+                       foaf:Person (equivalence runs both ways). The `a owl:Thing` lines are OWL \
+                       RL typing every class and individual, and the reflexive subClassOf lines \
+                       come with the equivalence",
+            },
+            Step {
+                label: "keep the closure",
+                cmd: "source urn:reason:closure graph=urn:data:vocab-alignment,urn:data:people-mixed \
+                      | sink urn:file:people-closure.ttl",
+                note: "`urn:sparql:select` reads its graphs by IRI, so the closure is written \
+                       to a file it can read. The file is a snapshot: after an edit, run this \
+                       step again",
+            },
+            Step {
+                label: "the same query over the closure",
+                cmd: "source urn:sparql:select graph=urn:file:people-closure.ttl \
+                      query=\"SELECT ?who ?name WHERE { ?who a <https://schema.org/Person> ; \
+                      <https://schema.org/name> ?name } ORDER BY ?name\" as=text/csv",
+                note: "Ada and Grace: one query in one vocabulary finds data written in either",
+            },
+        ],
+    },
+    Demo {
+        id: "typing",
+        label: "Domain & range",
+        intro: "An entity does not have to say what it is. Here ex:carol has no `rdf:type` at \
+                all, only an address. The schema says `schema:address` has domain \
+                `schema:Person` and range `schema:PostalAddress` (an assertion of this \
+                synthetic fixture; schema.org itself only says domainIncludes). The reasoner \
+                types both ends from the property alone, and `urn:kernel:actions` can then \
+                select actions for those types.",
+        steps: &[
+            Step {
+                label: "the data",
+                cmd: "source urn:data:typing",
+                note: "a domain and a range, and one untyped statement",
+            },
+            Step {
+                label: "typed by use",
+                cmd: "source urn:reason:inferred graph=urn:data:typing",
+                note: "ex:carol a schema:Person, from the domain; ex:carol-home a \
+                       schema:PostalAddress, from the range. The `a owl:Thing` lines are OWL RL \
+                       typing every class and individual",
+            },
+            Step {
+                label: "select for those types",
+                cmd: "source urn:kernel:actions \
+                      types=https://schema.org/Person,https://schema.org/PostalAddress",
+                note: "greet, geocode and mail: the two types the reasoner entailed, copied \
+                       here by hand, are all three actions need",
+            },
+        ],
+    },
+    Demo {
+        id: "topics",
+        label: "Topics",
+        intro: "A small SKOS scheme: Tokio is under async, async and Serde under Rust, Rust \
+                under programming, and sourdough under baking, each linked by `skos:broader` \
+                to its parent only. SKOS itself says `skos:broader` is a sub-property of \
+                `skos:broaderTransitive`, which is transitive, and the scheme carries those \
+                two axioms. The reasoner draws the chains, and a query over the closure \
+                narrows a list of tagged posts to everything under one topic.",
+        steps: &[
+            Step {
+                label: "the scheme",
+                cmd: "source urn:data:topics",
+                note: "parents only, plus SKOS's own two axioms",
+            },
+            Step {
+                label: "the chains",
+                cmd: "source urn:reason:inferred graph=urn:data:topics",
+                note: "skos:broaderTransitive from every topic to every topic above it (Tokio \
+                       → async, Rust, programming). The `a owl:Thing` lines are OWL RL typing \
+                       every class and individual",
+            },
+            Step {
+                label: "the tagged posts",
+                cmd: "source urn:data:tagged",
+                note: "four posts, each tagged with one topic (`dcterms:subject`)",
+            },
+            Step {
+                label: "under Rust, raw",
+                cmd: "source urn:sparql:select graph=urn:data:topics,urn:data:tagged \
+                      query=\"SELECT ?post WHERE { ?post <http://purl.org/dc/terms/subject> ?t \
+                      . FILTER(?t = <http://example.org/topic/rust> || EXISTS { ?t \
+                      <http://www.w3.org/2004/02/skos/core#broaderTransitive> \
+                      <http://example.org/topic/rust> }) } ORDER BY ?post\" as=text/csv",
+                note: "only the post tagged Rust itself: the raw data has no broaderTransitive",
+            },
+            Step {
+                label: "keep the closure",
+                cmd: "source urn:reason:closure graph=urn:data:topics,urn:data:tagged \
+                      | sink urn:file:topics-closure.ttl",
+                note: "written to a file `urn:sparql:select` can read; a snapshot, so run it \
+                       again after an edit",
+            },
+            Step {
+                label: "under Rust, over the closure",
+                cmd: "source urn:sparql:select graph=urn:file:topics-closure.ttl \
+                      query=\"SELECT ?post WHERE { ?post <http://purl.org/dc/terms/subject> ?t \
+                      . FILTER(?t = <http://example.org/topic/rust> || EXISTS { ?t \
+                      <http://www.w3.org/2004/02/skos/core#broaderTransitive> \
+                      <http://example.org/topic/rust> }) } ORDER BY ?post\" as=text/csv",
+                note: "the Tokio, Serde and Rust posts, not the sourdough one. A `skos:broader+` \
+                       property path answers this one question without a reasoner, and more \
+                       cheaply; the closure pays off when many questions read it (from about \
+                       the third distinct question, in the 2,000-concept measurement of ledger \
+                       #2640)",
+            },
+        ],
+    },
+    Demo {
+        id: "thread",
+        label: "The thread",
+        intro: "A closure is a cacheable resource hung from the golden threads of the graphs \
+                it read. Edit one axiom and only what read it recomputes: the line's cache \
+                tally (`[n cached · m computed]`, beside the answer) shows which. \
+                `urn:data:thread-graphs` lists two graphs, and `..` reasons over each in turn, \
+                one request per graph.",
+        steps: &[
+            Step {
+                label: "1 · write the alignment",
+                cmd: "source urn:data:alignment | sink urn:file:thread.ttl",
+                note: "the graph the edit will change, in a file",
+            },
+            Step {
+                label: "2 · the two graphs",
+                cmd: "source urn:data:thread-graphs",
+                note: "urn:file:thread.ttl and urn:data:topics",
+            },
+            Step {
+                label: "3 · reason over each",
+                cmd: "source urn:data:thread-graphs .. urn:reason:inferred",
+                note: "first time: 1 cached · 2 computed (the list was read in step 2; one \
+                       closure per graph is computed)",
+            },
+            Step {
+                label: "4 · again",
+                cmd: "source urn:data:thread-graphs .. urn:reason:inferred",
+                note: "3 cached: nothing changed, nothing recomputes",
+            },
+            Step {
+                label: "5 · edit one axiom",
+                cmd: "source urn:data:alignment-edit | sink urn:file:thread.ttl",
+                note: "the write cuts the file's thread",
+            },
+            Step {
+                label: "6 · again, after the edit",
+                cmd: "source urn:data:thread-graphs .. urn:reason:inferred",
+                note: "2 cached · 1 computed: the list and the topics closure stay cached; \
+                       only the closure that read the file recomputes, and it now holds \
+                       `ex:Customer rdfs:subClassOf schema:Person`",
+            },
+        ],
+    },
+    Demo {
+        id: "bounds",
+        label: "Reasoner bounds",
+        intro: "A closure can be far larger than its input: a class with many superclasses \
+                and many members types every member with every superclass. The reasoner \
+                admits at most 1,000 input triples and returns at most 100,000 closure \
+                triples (its defaults; a host can set others). Past either bound it refuses \
+                with OverBudget. It never truncates, so an answer is always the whole closure.",
+        steps: &[
+            Step {
+                label: "a small fan → ok",
+                cmd: "source urn:reason:inferred graph=urn:data:fan-small",
+                note: "3 superclasses × 4 members: 12 typings, plus OWL RL's `a owl:Thing` lines",
+            },
+            Step {
+                label: "past the output bound → refused",
+                cmd: "source urn:reason:closure graph=urn:data:fan-large",
+                note: "150 superclasses × 840 members: 990 input triples, under the input \
+                       bound, but 126,000 typings. Refused, naming the 100,000-triple bound. \
+                       The bound is checked after reasoning, so it does not save the time: \
+                       about 0.1 s natively, and in a browser the page waits for all of it",
+            },
+            Step {
+                label: "past the input bound → refused",
+                cmd: "source urn:reason:closure graph=urn:data:fan-over-input",
+                note: "1,001 input triples: refused before any reasoning starts",
             },
         ],
     },
@@ -637,6 +907,125 @@ pub const ALIGNMENT_TTL: &str = "\
 @prefix schema: <https://schema.org/> .\n\
 foaf:Person rdfs:subClassOf schema:Person .\n";
 
+/// The OWL 2 RL demos' graphs, each served as `urn:data:<id>` Turtle: (id, title, Turtle).
+/// Synthetic and small, read by `urn:reason:*` and `urn:sparql:select` through the kernel.
+/// Instance data lives under `http://example.org/`, like the SHACL demo's.
+static REASON_DATA: &[(&str, &str, &str)] = &[
+    (
+        "alignment-edit",
+        "The alignment, edited",
+        "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\
+         @prefix foaf: <http://xmlns.com/foaf/0.1/> .\n\
+         @prefix schema: <https://schema.org/> .\n\
+         @prefix ex: <http://example.org/> .\n\
+         foaf:Person rdfs:subClassOf schema:Person .\n\
+         ex:Customer rdfs:subClassOf foaf:Person .\n",
+    ),
+    (
+        "people",
+        "Two people, typed",
+        "@prefix foaf: <http://xmlns.com/foaf/0.1/> .\n\
+         @prefix ex: <http://example.org/> .\n\
+         ex:ada a foaf:Person .\n\
+         ex:bob a ex:Customer .\n",
+    ),
+    (
+        "vocab-alignment",
+        "A FOAF / schema.org alignment",
+        "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\
+         @prefix owl: <http://www.w3.org/2002/07/owl#> .\n\
+         @prefix foaf: <http://xmlns.com/foaf/0.1/> .\n\
+         @prefix schema: <https://schema.org/> .\n\
+         foaf:Person owl:equivalentClass schema:Person .\n\
+         foaf:name rdfs:subPropertyOf schema:name .\n",
+    ),
+    (
+        "people-mixed",
+        "People in two vocabularies",
+        "@prefix foaf: <http://xmlns.com/foaf/0.1/> .\n\
+         @prefix schema: <https://schema.org/> .\n\
+         @prefix ex: <http://example.org/> .\n\
+         ex:ada a schema:Person ;\n  schema:name \"Ada Lovelace\" .\n\
+         ex:grace a foaf:Person ;\n  foaf:name \"Grace Hopper\" .\n",
+    ),
+    (
+        "typing",
+        "A domain, a range, and an untyped entity",
+        "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\
+         @prefix schema: <https://schema.org/> .\n\
+         @prefix ex: <http://example.org/> .\n\
+         schema:address rdfs:domain schema:Person ;\n  rdfs:range schema:PostalAddress .\n\
+         ex:carol schema:address ex:carol-home .\n",
+    ),
+    (
+        "topics",
+        "A SKOS topic scheme",
+        "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\
+         @prefix owl: <http://www.w3.org/2002/07/owl#> .\n\
+         @prefix skos: <http://www.w3.org/2004/02/skos/core#> .\n\
+         @prefix topic: <http://example.org/topic/> .\n\
+         skos:broader rdfs:subPropertyOf skos:broaderTransitive .\n\
+         skos:broaderTransitive a owl:TransitiveProperty .\n\
+         topic:tokio skos:broader topic:async .\n\
+         topic:async skos:broader topic:rust .\n\
+         topic:serde skos:broader topic:rust .\n\
+         topic:rust skos:broader topic:programming .\n\
+         topic:sourdough skos:broader topic:baking .\n",
+    ),
+    (
+        "tagged",
+        "Posts tagged with topics",
+        "@prefix dcterms: <http://purl.org/dc/terms/> .\n\
+         @prefix topic: <http://example.org/topic/> .\n\
+         @prefix post: <http://example.org/post/> .\n\
+         post:1 dcterms:subject topic:tokio .\n\
+         post:2 dcterms:subject topic:serde .\n\
+         post:3 dcterms:subject topic:sourdough .\n\
+         post:4 dcterms:subject topic:rust .\n",
+    ),
+];
+
+/// The two graphs the Thread demo reasons over, one IRI a line (served as
+/// `urn:data:thread-graphs`, `text/plain`), so `..` issues one request per graph.
+const THREAD_GRAPHS: &str = "urn:file:thread.ttl\nurn:data:topics\n";
+
+/// The Reasoner-bounds demo's "fan" graphs, served as `urn:data:<id>` Turtle: (id, title,
+/// superclasses, members). One leaf class under `supers` superclasses, `members` instances of
+/// it: `supers + members` input triples and `supers × members` entailed typings, so the
+/// closure outgrows its input without the input growing. The large fan stays under the
+/// reasoner's default 1,000-triple input bound and passes its 100,000-triple output bound;
+/// the last is one triple past the input bound.
+static FANS: &[(&str, &str, usize, usize)] = &[
+    ("fan-small", "A small fan: 3 superclasses, 4 members", 3, 4),
+    (
+        "fan-large",
+        "A large fan: 150 superclasses, 840 members",
+        150,
+        840,
+    ),
+    (
+        "fan-over-input",
+        "A fan past the input bound: 1,001 triples",
+        150,
+        851,
+    ),
+];
+
+/// A fan graph as Turtle: `ex:Leaf` under `supers` superclasses, with `members` instances.
+fn fan(supers: usize, members: usize) -> String {
+    let mut ttl = String::from(
+        "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n\
+         @prefix ex: <http://example.org/> .\n",
+    );
+    for i in 0..supers {
+        ttl.push_str(&format!("ex:Leaf rdfs:subClassOf ex:Up{i} .\n"));
+    }
+    for i in 0..members {
+        ttl.push_str(&format!("ex:m{i} a ex:Leaf .\n"));
+    }
+    ttl
+}
+
 /// A JSON-LD context for the ikigai namespace, served as `urn:data:ik-context` — the
 /// resource the JSON-LD demo's `compact` step compacts against. `@vocab` maps the default
 /// namespace so ikigai properties compact back to bare terms; that the context shaping a
@@ -792,6 +1181,60 @@ pub fn space() -> EndpointSpace {
             ),
         );
     }
+    // The OWL 2 RL demos' graphs, constants like the SHACL ones; the reasoner and SPARQL
+    // read them by IRI through the kernel.
+    for &(id, title, ttl) in REASON_DATA {
+        space = space.bind(
+            Exact::new(format!("urn:data:{id}")),
+            FnEndpoint::new(format!("data-{id}"), move |_inv: &Invocation<'_>| {
+                Ok(repr("text/turtle", ttl.to_string()).cacheable())
+            })
+            .with_description(
+                Description::new(format!("data-{id}"))
+                    .title(title)
+                    .summary("An OWL 2 RL demo graph, served as Turtle.")
+                    .verb(Verb::Source)
+                    .verb(Verb::Meta)
+                    .output("text/turtle"),
+            ),
+        );
+    }
+    for &(id, title, supers, members) in FANS {
+        space = space.bind(
+            Exact::new(format!("urn:data:{id}")),
+            FnEndpoint::new(format!("data-{id}"), move |_inv: &Invocation<'_>| {
+                Ok(repr("text/turtle", fan(supers, members)).cacheable())
+            })
+            .with_description(
+                Description::new(format!("data-{id}"))
+                    .title(title)
+                    .summary(
+                        "A generated fan graph for the reasoner-bounds demo (one class under \
+                         many superclasses, with many members), served as Turtle.",
+                    )
+                    .verb(Verb::Source)
+                    .verb(Verb::Meta)
+                    .output("text/turtle"),
+            ),
+        );
+    }
+    space = space.bind(
+        Exact::new("urn:data:thread-graphs"),
+        FnEndpoint::new("data-thread-graphs", |_inv: &Invocation<'_>| {
+            Ok(repr("text/plain", THREAD_GRAPHS.to_string()).cacheable())
+        })
+        .with_description(
+            Description::new("data-thread-graphs")
+                .title("The Thread demo's graphs")
+                .summary(
+                    "The two graph IRIs the Thread demo reasons over, one a line, for `..` \
+                     to issue one request each.",
+                )
+                .verb(Verb::Source)
+                .verb(Verb::Meta)
+                .output("text/plain"),
+        ),
+    );
     // Toy typed "action" endpoints for the Selection demo. Each declares the RDF class its
     // input needs (`ik:class`), so `urn:kernel:actions` can match them by type — "given these
     // entities, what can I do?". The class is selection metadata; invoking just uses the

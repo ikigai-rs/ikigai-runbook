@@ -1,6 +1,6 @@
-//! The module recipe as one test: `ikigai-conformance` walks the twenty-three
-//! endpoints [`ikigai_runbook::space`] binds — thirteen `runbook-<id>` pages,
-//! the page script, six constant graphs (`urn:data:*`), three toy actions
+//! The module recipe as one test: `ikigai-conformance` walks the thirty-nine
+//! endpoints [`ikigai_runbook::space`] binds — eighteen `runbook-<id>` pages,
+//! the page script, seventeen constant graphs (`urn:data:*`), three toy actions
 //! (`urn:action:*`) — and reports every violation at once.
 //!
 //! ## The kernel is the module's own space, with nothing added
@@ -15,12 +15,12 @@
 //!
 //! ## Declarations, and why
 //!
-//! - **`pure` + `cacheable` on the six constant graphs.** Each is `.cacheable()`
+//! - **`pure` + `cacheable` on the seventeen constant graphs.** Each is `.cacheable()`
 //!   and depends on nothing, so it carries no thread but its own name (the one
 //!   the kernel hangs every cacheable answer on since ikigai-core 0.1.73) —
 //!   correct, because a constant reads nothing anyone could cut — and the suite
 //!   rightly refuses to take that on faith, so it is declared.
-//! - **Nothing on the thirteen pages.** They are served live (`Expiry::Always`)
+//! - **Nothing on the eighteen pages.** They are served live (`Expiry::Always`)
 //!   ON PURPOSE: the tab strip is process-global host state (`add_tab` /
 //!   `hide_tab`) that no golden thread tracks and no cut can reach, so a cached
 //!   page would serve a strip the host has since withdrawn.
@@ -42,7 +42,7 @@
 //! - **`body_space`, the same `Arc` the kernel is built from.** BODIES (since
 //!   `ikigai-conformance` 0.12.0) compares an endpoint's `invoke` with its
 //!   collected `invoke_body` in the module space, which a kernel does not expose.
-//!   The seven constants are probed; the live pages and toy actions stay
+//!   The eighteen constants are probed; the live pages and toy actions stay
 //!   unprobed by BODIES with the suite's own reason, and [`assert_shape`] pins
 //!   exactly that set. No argument declares `reads_body`, so BODY-INPUTS has
 //!   nothing to probe and the kernel needs no content store.
@@ -90,9 +90,9 @@ use ikigai_core::{
 };
 use ikigai_runbook::PAGE_FACES;
 
-/// The thirteen built-in pages, by tab id (`urn:runbook:<id>`, description
+/// The eighteen built-in pages, by tab id (`urn:runbook:<id>`, description
 /// `runbook-<id>`).
-const PAGES: [&str; 13] = [
+const PAGES: [&str; 18] = [
     "basics",
     "piping",
     "http",
@@ -104,12 +104,19 @@ const PAGES: [&str; 13] = [
     "bytes",
     "jsonld",
     "selection",
+    "vocabularies",
+    "typing",
+    "topics",
+    "thread",
+    "bounds",
     "shacl",
     "lisp",
 ];
 
-/// The six constant graphs: (description id, IRI, media type served).
-const GRAPHS: [(&str, &str, &str); 6] = [
+/// The seventeen constant graphs: (description id, IRI, media type served). The
+/// OWL 2 RL demos' (from `data-alignment-edit` on) include three generated "fan" graphs,
+/// still constants: a pure function of nothing.
+const GRAPHS: [(&str, &str, &str); 17] = [
     ("ik-context", "urn:data:ik-context", "application/ld+json"),
     ("alignment", "urn:data:alignment", "text/turtle"),
     (
@@ -124,6 +131,29 @@ const GRAPHS: [(&str, &str, &str); 6] = [
         "urn:data:endpoint-shape",
         "text/turtle",
     ),
+    (
+        "data-alignment-edit",
+        "urn:data:alignment-edit",
+        "text/turtle",
+    ),
+    ("data-people", "urn:data:people", "text/turtle"),
+    (
+        "data-vocab-alignment",
+        "urn:data:vocab-alignment",
+        "text/turtle",
+    ),
+    ("data-people-mixed", "urn:data:people-mixed", "text/turtle"),
+    ("data-typing", "urn:data:typing", "text/turtle"),
+    ("data-topics", "urn:data:topics", "text/turtle"),
+    ("data-tagged", "urn:data:tagged", "text/turtle"),
+    ("data-fan-small", "urn:data:fan-small", "text/turtle"),
+    ("data-fan-large", "urn:data:fan-large", "text/turtle"),
+    (
+        "data-fan-over-input",
+        "urn:data:fan-over-input",
+        "text/turtle",
+    ),
+    ("data-thread-graphs", "urn:data:thread-graphs", "text/plain"),
 ];
 
 /// The three toy actions: (IRI, the required inputs with a value each).
@@ -186,14 +216,14 @@ fn suite() -> Suite {
 }
 
 /// The walk saw every endpoint `space()` binds — one Source action each; Meta is
-/// not an action — and skipped no check. A twenty-fourth endpoint bound without a
+/// not an action — and skipped no check. A fortieth endpoint bound without a
 /// line here would be held to a weaker standard.
 fn assert_shape(report: &Report) {
     assert_eq!(
-        report.endpoints, 23,
-        "13 pages + 1 script + 6 graphs + 3 toy actions: {report}"
+        report.endpoints, 39,
+        "18 pages + 1 script + 17 graphs + 3 toy actions: {report}"
     );
-    assert_eq!(report.actions, 23, "one Source each: {report}");
+    assert_eq!(report.actions, 39, "one Source each: {report}");
     // Since ikigai-conformance 0.11.0 DATATYPES and FAILURES run by default, so no
     // check may be skipped.
     assert_eq!(
@@ -207,11 +237,11 @@ fn assert_shape(report: &Report) {
     );
     // Since ikigai-conformance 0.12.0 BODIES compares each deterministic Source's
     // `invoke` with its collected `invoke_body` in the module space handed to
-    // `body_space`. The seven constants are probed; the thirteen pages and three
+    // `body_space`. The eighteen constants are probed; the eighteen pages and three
     // toy actions are live by decision (the file docs say why), and an independent
     // second call cannot establish agreement for a live answer, so the suite
     // leaves exactly those unprobed, and only for BODIES. Without `body_space` all
-    // twenty-three are unprobed, so this assertion is what keeps the wiring on.
+    // thirty-nine are unprobed, so this assertion is what keeps the wiring on.
     // No argument declares `reads_body`, so BODY-INPUTS has nothing to probe and
     // needs no content store; one declared later would show here unprobed.
     let unprobed: BTreeSet<(String, Check)> = report
@@ -381,7 +411,7 @@ fn pages_are_live_because_the_strip_is_host_state() {
     }
 }
 
-/// The six constant graphs are `.cacheable()` and read nothing — the suite's
+/// The seventeen constant graphs are `.cacheable()` and read nothing — the suite's
 /// purity finding, waived by `pure` because a constant has nothing to cut. By
 /// hand: `Expiry::Never`, no thread but the graph's own name, a cache hit after
 /// one read, byte-identical. Since ikigai-core 0.1.73 the kernel hangs every
@@ -434,9 +464,10 @@ fn the_constant_graphs_are_cached_with_only_their_own_thread() {
     );
 }
 
-/// The four Turtle faces, by hand and in full: non-empty, no blank nodes (the
-/// property shapes are named), every subject under the Account demo's example
-/// namespace or the runbook's own `urn:runbook:shape:*`, every predicate and
+/// Every Turtle graph, by hand and in full: non-empty, no blank nodes (the
+/// property shapes are named), every subject under the demos' example namespace,
+/// the runbook's own `urn:runbook:shape:*`, FOAF (the Selection alignment) or the
+/// vocabulary a reasoning demo aligns ([`aligned_vocabularies`]), every predicate and
 /// class accounted for — and, beyond what VOCABULARY sees, every term a shape
 /// TARGETS (`sh:path`, `sh:targetClass`) is defined too: the `ik:` ones by
 /// `ikigai-vocab`, the `ex:` ones by being the demo's.
@@ -460,7 +491,10 @@ fn the_shapes_are_skolemized_and_reference_only_defined_terms() {
             assert!(
                 subject.starts_with(&format!("<{EXAMPLE_NS}"))
                     || subject.starts_with(&format!("<{SHAPE_NS}"))
-                    || subject.starts_with("<http://xmlns.com/foaf/0.1/"),
+                    || subject.starts_with("<http://xmlns.com/foaf/0.1/")
+                    || aligned_vocabularies(iri)
+                        .iter()
+                        .any(|ns| subject.starts_with(&format!("<{ns}"))),
                 "{iri}: every subject is a demo IRI: {subject}"
             );
             let predicate = triple.predicate.as_str();
@@ -490,6 +524,20 @@ fn the_shapes_are_skolemized_and_reference_only_defined_terms() {
             rdf::is_defined(term, &namespaces),
             "a shape targets `{term}`, which nothing defines (VOCABULARY does not look here)"
         );
+    }
+}
+
+/// The vocabularies an OWL 2 RL demo graph states axioms ABOUT, so their terms are its
+/// subjects: an alignment's `schema:address rdfs:domain …` or SKOS's own `skos:broader
+/// rdfs:subPropertyOf skos:broaderTransitive` is about that vocabulary's term, as the
+/// Selection alignment's `foaf:Person rdfs:subClassOf …` always was. Named per graph, so
+/// every other graph still holds to demo subjects only.
+fn aligned_vocabularies(iri: &str) -> &'static [&'static str] {
+    match iri {
+        "urn:data:vocab-alignment" => &["https://schema.org/"],
+        "urn:data:typing" => &["https://schema.org/"],
+        "urn:data:topics" => &["http://www.w3.org/2004/02/skos/core#"],
+        _ => &[],
     }
 }
 
