@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.3.1"  # updates the private ikigai-fn dependency to 0.8; no public API change (ledger #2621)
+version = "0.3.2"  # the OWL 2 RL demos: six reasoned steps on Selection and five reasoning pages (ledger #2641); additive, no public API removed. Beneath it: 0.3.1 updates the private ikigai-fn dependency to 0.8 (ledger #2621)
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
@@ -32,7 +32,10 @@ ikigai-conformance = "0.12.0"
 # The Bytes demo's steps, run through the real REPL engine over the modules they name
 # (`tests/bytes_demo.rs`): pipe routing lives in the engine, so only the engine shows it.
 # All three on core 0.2 (ledger #2261), so the tree links one core.
-ikigai-engine = "0.2.0"
+# 0.2.5 is a TEST floor (ledger #2523): before it a map ran once more on a final newline, so the
+# Thread page's `source urn:data:thread-graphs .. urn:reason:inferred` sent an empty `graph` and was refused.
+# Measured 2026-10-30: engine 0.2.1 fails `an_edit_recomputes_only_what_read_it`; 0.2.5 (resolved at `=0.2.5`) and 0.2.11 pass.
+ikigai-engine = "0.2.5"
 ikigai-compress = "0.3.0"
 ikigai-sniff = "0.3.1"
 # The OWL 2 RL demos' steps (`tests/reasoning_demos.rs`), run through the same engine over
