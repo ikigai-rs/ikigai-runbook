@@ -52,6 +52,7 @@ to the in-crate table — no per-host code, in either frontend.
 | `urn:runbook:transrept` | Transreption | one graph, many syntaxes — N-Triples, RDF/XML, JSON-LD, an HTML table |
 | `urn:runbook:sniff` | Sniff & dispatch | `urn:sniff` types opaque bytes; `urn:transrept:auto` routes to the transreptor |
 | `urn:runbook:bytes` | Bytes | bytes that are not text; gzip and gunzip through `ikigai-compress`'s transreptors; `as` naming what gzip does not record; a `max-bytes` bound that refuses past its limit |
+| `urn:runbook:streams` | Streams | a file's body, read again and stored; `urn:stream:range` over it, refused past the end and followed after an edit; a one-shot stream never stored (`why` says so), collected with `urn:stream:collect` and spilled with `urn:stream:spill` |
 | `urn:runbook:jsonld` | JSON-LD | expand / flatten / compact against a context that is itself a resource |
 | `urn:runbook:selection` | Selection | typed actions + `urn:kernel:actions types=…`; `rdfs:subClassOf` reasoning through the host's built map, then the same question through the OWL 2 RL reasoner (`urn:reason:inferred`); an edit to the alignment that the reasoner follows and the built map does not, with the measured cost of each |
 | `urn:runbook:vocabularies` | Two vocabularies | `owl:equivalentClass` and `rdfs:subPropertyOf` between schema.org and FOAF terms: one SPARQL query over the closure finds people written in either |
@@ -113,6 +114,17 @@ The **Bytes** page needs two modules in the host's kernel: `ikigai-compress` (`u
 wasm. A host that does not link `ikigai-compress` should `hide_tab("bytes")`, the same as the Lisp
 tab below. `tests/bytes_demo.rs` runs every step of the page through the real REPL engine over
 those modules, so a step that stops doing what its note says is a red test.
+
+The **Streams** page needs `ikigai-rdf` (its Turtle → N-Triples path parses as the input arrives and
+answers a one-shot stream) and an `ikigai-fs` mount at `urn:file:*`, cacheable as the hosts mount it
+(on a native host a file read answers a seekable body that can be read again). The `urn:stream:*`
+builtins are the kernel's own (ikigai-core 0.2). `urn:stream:spill` needs the host's spill facility
+(`Kernel::with_spill`, for instance `ikigai_fs::FileSpill`); a host with none refuses step 10 by
+name, which is what a browser shows. In a browser the file mount is `localStorage` and answers a
+buffer, so steps 6 to 8 answer a buffer there and `why` gives no `one-shot body`.
+`tests/streams_demo.rs` runs every step in order through the real REPL engine over a native
+host's modules with a `FileSpill` installed, checks each line's cache tally as well as its answer,
+and checks the spill step's refusal on a kernel with no facility.
 
 ## Host-extensible tabs — `add_tab` and `hide_tab`
 
