@@ -1,5 +1,5 @@
-//! The module recipe as one test: `ikigai-conformance` walks the thirty-nine
-//! endpoints [`ikigai_runbook::space`] binds — eighteen `runbook-<id>` pages,
+//! The module recipe as one test: `ikigai-conformance` walks the forty
+//! endpoints [`ikigai_runbook::space`] binds — nineteen `runbook-<id>` pages,
 //! the page script, seventeen constant graphs (`urn:data:*`), three toy actions
 //! (`urn:action:*`) — and reports every violation at once.
 //!
@@ -20,7 +20,7 @@
 //!   the kernel hangs every cacheable answer on since ikigai-core 0.1.73) —
 //!   correct, because a constant reads nothing anyone could cut — and the suite
 //!   rightly refuses to take that on faith, so it is declared.
-//! - **Nothing on the eighteen pages.** They are served live (`Expiry::Always`)
+//! - **Nothing on the nineteen pages.** They are served live (`Expiry::Always`)
 //!   ON PURPOSE: the tab strip is process-global host state (`add_tab` /
 //!   `hide_tab`) that no golden thread tracks and no cut can reach, so a cached
 //!   page would serve a strip the host has since withdrawn.
@@ -90,9 +90,9 @@ use ikigai_core::{
 };
 use ikigai_runbook::PAGE_FACES;
 
-/// The eighteen built-in pages, by tab id (`urn:runbook:<id>`, description
+/// The nineteen built-in pages, by tab id (`urn:runbook:<id>`, description
 /// `runbook-<id>`).
-const PAGES: [&str; 18] = [
+const PAGES: [&str; 19] = [
     "basics",
     "piping",
     "http",
@@ -102,6 +102,7 @@ const PAGES: [&str; 18] = [
     "transrept",
     "sniff",
     "bytes",
+    "streams",
     "jsonld",
     "selection",
     "vocabularies",
@@ -216,14 +217,14 @@ fn suite() -> Suite {
 }
 
 /// The walk saw every endpoint `space()` binds — one Source action each; Meta is
-/// not an action — and skipped no check. A fortieth endpoint bound without a
+/// not an action — and skipped no check. A forty-first endpoint bound without a
 /// line here would be held to a weaker standard.
 fn assert_shape(report: &Report) {
     assert_eq!(
-        report.endpoints, 39,
-        "18 pages + 1 script + 17 graphs + 3 toy actions: {report}"
+        report.endpoints, 40,
+        "19 pages + 1 script + 17 graphs + 3 toy actions: {report}"
     );
-    assert_eq!(report.actions, 39, "one Source each: {report}");
+    assert_eq!(report.actions, 40, "one Source each: {report}");
     // Since ikigai-conformance 0.11.0 DATATYPES and FAILURES run by default, so no
     // check may be skipped.
     assert_eq!(
@@ -237,11 +238,11 @@ fn assert_shape(report: &Report) {
     );
     // Since ikigai-conformance 0.12.0 BODIES compares each deterministic Source's
     // `invoke` with its collected `invoke_body` in the module space handed to
-    // `body_space`. The eighteen constants are probed; the eighteen pages and three
+    // `body_space`. The eighteen constants are probed; the nineteen pages and three
     // toy actions are live by decision (the file docs say why), and an independent
     // second call cannot establish agreement for a live answer, so the suite
     // leaves exactly those unprobed, and only for BODIES. Without `body_space` all
-    // thirty-nine are unprobed, so this assertion is what keeps the wiring on.
+    // forty are unprobed, so this assertion is what keeps the wiring on.
     // No argument declares `reads_body`, so BODY-INPUTS has nothing to probe and
     // needs no content store; one declared later would show here unprobed.
     let unprobed: BTreeSet<(String, Check)> = report
