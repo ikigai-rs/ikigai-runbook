@@ -358,6 +358,98 @@ static DEMOS: &[Demo] = &[
         ],
     },
     Demo {
+        id: "streams",
+        label: "Streams",
+        intro: "A body either can be read again or is read once. A file can be read again: \
+                every reader starts from the first byte, or from any offset, so the kernel \
+                stores the answer and `urn:stream:range` can slice it. A one-shot stream is \
+                read once, as it arrives, so the kernel never stores it, and `why` says that \
+                is the reason. The kernel itself answers the `urn:stream:*` builtins: \
+                `collect` reads a stream into one buffer under the run's byte budget, and \
+                `spill` writes it to the host's disk and answers a body that can be read \
+                again. Each refuses past its bound and never answers a shorter body.",
+        steps: &[
+            Step {
+                label: "1 · write a file",
+                cmd: "sink urn:file:streams.ttl \
+                      <urn:ex:ada> a <urn:ex:Person> . <urn:ex:alan> a <urn:ex:Person> .",
+                note: "two triples of Turtle, 66 bytes",
+            },
+            Step {
+                label: "2 · read it",
+                cmd: "source urn:file:streams.ttl",
+                note: "computed: on a native host the file answers a body that can be read \
+                       again (in a browser it is a buffer, which can be read again too)",
+            },
+            Step {
+                label: "3 · read it again",
+                cmd: "source urn:file:streams.ttl",
+                note: "cached: a body that can be read again is stored like a buffer",
+            },
+            Step {
+                label: "4 · a byte range",
+                cmd: "source urn:stream:range of=<urn:file:streams.ttl> start=0 end=12",
+                note: "`<urn:ex:ada>`, bytes 0 to 11 (`end` is exclusive): read from the \
+                       offset, not collected and sliced. The answer hangs from the file's thread",
+            },
+            Step {
+                label: "5 · past the end → refused",
+                cmd: "source urn:stream:range of=<urn:file:streams.ttl> start=1000",
+                note: "refused, naming the file's 66 bytes (HTTP's 416), rather than answered empty",
+            },
+            Step {
+                label: "6 · a one-shot stream",
+                cmd: "source urn:rdf:transrept content=<urn:file:streams.ttl> \
+                      as=application/n-triples",
+                note: "N-Triples written as the Turtle is parsed, chunk by chunk, and answered \
+                       as a one-shot stream. That holds on a native host; in a browser the file \
+                       is a buffer, and so is this answer",
+            },
+            Step {
+                label: "7 · and again",
+                cmd: "source urn:rdf:transrept content=<urn:file:streams.ttl> \
+                      as=application/n-triples",
+                note: "computed again: the file did not change, but a one-shot answer is never \
+                       stored",
+            },
+            Step {
+                label: "8 · why not stored?",
+                cmd: "why urn:rdf:transrept",
+                note: "the kernel's uncached log names the reason: `one-shot body`",
+            },
+            Step {
+                label: "9 · collect it",
+                cmd: "source urn:rdf:transrept content=<urn:file:streams.ttl> \
+                      as=application/n-triples | urn:stream:collect",
+                note: "the stream piped unread into `urn:stream:collect`, which reads it into \
+                       one buffer under the run's byte budget (64 MiB unless the host sets \
+                       another; a `urn:cap:stream:memory:<bytes>` grant raises it up to the \
+                       host's ceiling). Past it the answer is OverBudget, never a shorter body",
+            },
+            Step {
+                label: "10 · spill it",
+                cmd: "source urn:rdf:transrept content=<urn:file:streams.ttl> \
+                      as=application/n-triples | urn:stream:spill",
+                note: "written to the host's spill facility and answered as a body that can be \
+                       read again, under the caller's disk budget \
+                       (`urn:cap:stream:spill:<bytes>`). A host with no spill facility (a \
+                       browser has none) refuses, naming it",
+            },
+            Step {
+                label: "11 · edit the file",
+                cmd: "sink urn:file:streams.ttl \
+                      <urn:ex:bob> a <urn:ex:Person> . <urn:ex:alan> a <urn:ex:Person> .",
+                note: "the write cuts the file's thread",
+            },
+            Step {
+                label: "12 · the range follows",
+                cmd: "source urn:stream:range of=<urn:file:streams.ttl> start=0 end=12",
+                note: "`<urn:ex:bob>`, computed: the range cached in step 4 hung from the file's \
+                       thread, so the write cut it too",
+            },
+        ],
+    },
+    Demo {
         id: "jsonld",
         label: "JSON-LD",
         intro: "JSON-LD is RDF that reads as ordinary JSON. The same catalog graph runs \

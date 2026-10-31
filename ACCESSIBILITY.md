@@ -35,7 +35,7 @@ renders these pages owns how they look.
 ### In scope
 
 - **The HTML face** (`as=text/html`) of every page, `urn:runbook:basics` through
-  `urn:runbook:lisp` (the Bytes page, `urn:runbook:bytes`, included): the tab strip (`render_tab_strip`, also used by a host's own tabs), the panel
+  `urn:runbook:lisp` (the Bytes page, `urn:runbook:bytes`, and the Streams page, `urn:runbook:streams`, included): the tab strip (`render_tab_strip`, also used by a host's own tabs), the panel
   with its intro, its numbered steps, the "clear output" button and the output region.
 - **The text face** (`as=text/plain`): the tab list with the active tab in brackets, the intro, and
   the numbered steps with their commands and notes.
@@ -83,6 +83,8 @@ run and has had no browser check. Nor have the five OWL 2 RL pages added 2026-10
 to Selection that day: they use the same markup, and only `cargo test` has run over them. Their
 outputs can be long (a closure in Turtle, with OWL RL's `a owl:Thing` lines), which makes the
 known gap below, an answer that is not read out, larger on those pages.
+Nor has the Streams page (`urn:runbook:streams`, added 2026-10-31) had a browser check: the
+same markup, twelve steps, and only `cargo test` has run over it.
 
 How the steps read, whether the notes explain enough, and how the output region sounds when a long
 answer arrives are for a person to judge, and none of that has been done.
