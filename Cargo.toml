@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.3.2"  # the OWL 2 RL demos: six reasoned steps on Selection and five reasoning pages (ledger #2641); additive, no public API removed. Beneath it: 0.3.1 updates the private ikigai-fn dependency to 0.8 (ledger #2621)
+version = "0.3.3"  # the Streams demo page, twelve steps (ledger #2260); additive, no public API removed. Beneath it: 0.3.2 = the OWL 2 RL demos: six reasoned steps on Selection and five reasoning pages (ledger #2641); additive, no public API removed. Beneath it: 0.3.1 updates the private ikigai-fn dependency to 0.8 (ledger #2621)
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
