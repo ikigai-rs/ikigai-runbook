@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.3.3"  # the Streams demo page, twelve steps (ledger #2260); additive, no public API removed. Beneath it: 0.3.2 = the OWL 2 RL demos: six reasoned steps on Selection and five reasoning pages (ledger #2641); additive, no public API removed. Beneath it: 0.3.1 updates the private ikigai-fn dependency to 0.8 (ledger #2621)
+version = "0.3.4"  # Updates ikigai-fn to 0.9.0 so hosts can share one copy (ledger #2850). Beneath it: 0.3.3 = the Streams demo page, twelve steps (ledger #2260); additive, no public API removed. Beneath it: 0.3.2 = the OWL 2 RL demos: six reasoned steps on Selection and five reasoning pages (ledger #2641); additive, no public API removed. Beneath it: 0.3.1 updates the private ikigai-fn dependency to 0.8 (ledger #2621)
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
@@ -16,7 +16,7 @@ categories = ["web-programming"]
 ikigai-core = "0.2.0"
 # Structured (application/json) representation for non-HTML hosts — the TUI sources
 # it to drive step-running by number.
-ikigai-fn = "0.8.0"  # compose markers accept <iri> references; no literal =< values in shipped markers (ledger #2621)
+ikigai-fn = "0.9.0"  # retains reference arguments and adds strict percent decoding (ledger #2850)
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

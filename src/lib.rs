@@ -1833,6 +1833,7 @@ mod tests {
     /// Ledger #1644: a tab label (or id) from untrusted input renders as text, not markup.
     #[test]
     fn a_tab_label_holding_markup_renders_as_text() {
+        let _guard = serial();
         add_tab("evil1644", "<script>alert(1)</script>\"&");
         let html = source("urn:runbook:basics", "text/html");
         assert!(!html.contains("<script>"), "label injected markup: {html}");
