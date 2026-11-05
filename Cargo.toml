@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.3.4"  # Updates ikigai-fn to 0.9.0 so hosts can share one copy (ledger #2850). Beneath it: 0.3.3 = the Streams demo page, twelve steps (ledger #2260); additive, no public API removed. Beneath it: 0.3.2 = the OWL 2 RL demos: six reasoned steps on Selection and five reasoning pages (ledger #2641); additive, no public API removed. Beneath it: 0.3.1 updates the private ikigai-fn dependency to 0.8 (ledger #2621)
+version = "0.4.0"  # Public API now uses core 0.3 types (ledger #3072).
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
@@ -11,12 +11,12 @@ keywords = ["ikigai", "roc", "htmx", "hypermedia", "runbook"]
 categories = ["web-programming"]
 
 [dependencies]
-# 0.2.0 is the streams release (ledger #2261); the old 0.1 pin meant <0.2.0 under 0.x rules.
-# space_iri + bind-drops-the-name (SPACE-NAME, ledger #987) and one_of/default_value carried over.
-ikigai-core = "0.2.0"
+# Core 0.3 scopes held content to the delivering principal and makes unscoped writes
+# root-only (scoped content store, ledger #2965).
+ikigai-core = "0.3.0"
 # Structured (application/json) representation for non-HTML hosts — the TUI sources
 # it to drive step-running by number.
-ikigai-fn = "0.9.0"  # retains reference arguments and adds strict percent decoding (ledger #2850)
+ikigai-fn = "0.10.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
@@ -27,23 +27,23 @@ futures = "0.3"
 # binds, every action each declares, every checkable rule at once. 0.6.0 added SPACE-NAME
 # (`self_named_space`), 0.7.0 VALIDATE, 0.8.0 REQUIRED, 0.9.0 contract shape + RECOMPUTE, 0.10.0 FAILURES (off), 0.11.0 core 0.2 with
 # DATATYPES and FAILURES on by default, 0.12.0 BODIES and BODY-INPUTS on by default (ledger
-# #2559). A 0.x caret is a ceiling too: "0.12.0" admits no 0.13.
-ikigai-conformance = "0.12.0"
+# #2559). 0.14.0 moves the recipe to core 0.3 (ledger #3072).
+ikigai-conformance = "0.14.0"
 # The Bytes demo's steps, run through the real REPL engine over the modules they name
 # (`tests/bytes_demo.rs`): pipe routing lives in the engine, so only the engine shows it.
-# All three on core 0.2 (ledger #2261), so the tree links one core.
+# All ikigai dependencies, including dev-dependencies, use core 0.3 (ledger #3072).
 # 0.2.5 is a TEST floor (ledger #2523): before it a map ran once more on a final newline, so the
 # Thread page's `source urn:data:thread-graphs .. urn:reason:inferred` sent an empty `graph` and was refused.
 # Measured 2026-10-30: engine 0.2.1 fails `an_edit_recomputes_only_what_read_it`; 0.2.5 (resolved at `=0.2.5`) and 0.2.11 pass.
-ikigai-engine = "0.2.5"
-ikigai-compress = "0.3.0"
-ikigai-sniff = "0.3.1"
+ikigai-engine = "0.3.0"
+ikigai-compress = "0.5.0"
+ikigai-sniff = "0.5.0"
 # The OWL 2 RL demos' steps (`tests/reasoning_demos.rs`), run through the same engine over
-# the modules a host links for them: the reasoner (pinned at its first published release,
-# ledger #2641), `ikigai-rdf` (its non-Turtle faces and `subclass_axioms`, which builds the
+# the modules a host links for them: the reasoner (ledger #2641), `ikigai-rdf`
+# (its non-Turtle faces and `subclass_axioms`, which builds the
 # Selection demo's closure the way the hosts do), `ikigai-sparql` (one query over a closure)
 # and `ikigai-fs` (the file an edit is written to).
-ikigai-reason = "0.3.3"
-ikigai-rdf = "0.3.3"
-ikigai-sparql = "0.3.3"
-ikigai-fs = "0.3.0"
+ikigai-reason = "0.5.0"
+ikigai-rdf = "0.5.0"
+ikigai-sparql = "0.5.0"
+ikigai-fs = "0.4.1"
