@@ -368,10 +368,17 @@ fn an_edit_recomputes_only_what_read_it() {
         "4 · again" => assert_eq!(ran.tally.as_deref(), Some("3 cached")),
         "6 · again, after the edit" => {
             assert_eq!(ran.tally.as_deref(), Some("2 cached · 1 computed"));
-            assert!(ran
-                .ok()
-                .contains("<http://example.org/Customer> a <http://www.w3.org/2002/07/owl#Thing> ;\n\t<http://www.w3.org/2000/01/rdf-schema#subClassOf> <https://schema.org/Person>"),
-                "{:?}", ran.out);
+            let out = ran.ok();
+            assert!(typed(out, &ex("Customer"), OWL_THING), "{out}");
+            assert!(
+                has(
+                    out,
+                    &format!("<{}>", ex("Customer")),
+                    "<http://www.w3.org/2000/01/rdf-schema#subClassOf>",
+                    &format!("<{SCHEMA_PERSON}>")
+                ),
+                "{out}"
+            );
         }
         other => panic!("no expectation for step `{other}`"),
     });
