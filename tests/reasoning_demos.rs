@@ -216,7 +216,9 @@ fn the_selection_page_compares_the_built_map_with_the_reasoner() {
             assert!(!typed(out, &ex("bob"), SCHEMA_PERSON), "{out}");
             assert_eq!(ran.tally.as_deref(), Some("computed"));
         }
-        "copy the alignment to a file" | "edit: Customer ⊑ foaf:Person" => wrote(ran),
+        "copy the alignment to a file" | "edit: Customer is a subclass of foaf:Person" => {
+            wrote(ran)
+        }
         "reason over the file" => {
             assert!(typed(ran.ok(), &ex("ada"), SCHEMA_PERSON));
             assert!(!typed(ran.ok(), &ex("bob"), SCHEMA_PERSON));
@@ -358,15 +360,15 @@ fn the_topic_closure_narrows_the_posts() {
 #[test]
 fn an_edit_recomputes_only_what_read_it() {
     run_page("thread", 6, |label, ran| match label {
-        "1 · write the alignment" | "5 · edit one axiom" => wrote(ran),
-        "2 · the two graphs" => {
+        "write the alignment" | "edit one axiom" => wrote(ran),
+        "the two graphs" => {
             assert_eq!(ran.ok(), "urn:file:thread.ttl\nurn:data:topics\n")
         }
-        "3 · reason over each" => {
+        "reason over each" => {
             assert_eq!(ran.tally.as_deref(), Some("1 cached · 2 computed"))
         }
-        "4 · again" => assert_eq!(ran.tally.as_deref(), Some("3 cached")),
-        "6 · again, after the edit" => {
+        "again" => assert_eq!(ran.tally.as_deref(), Some("3 cached")),
+        "again, after the edit" => {
             assert_eq!(ran.tally.as_deref(), Some("2 cached · 1 computed"));
             let out = ran.ok();
             assert!(typed(out, &ex("Customer"), OWL_THING), "{out}");

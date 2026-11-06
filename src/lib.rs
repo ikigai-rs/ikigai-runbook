@@ -168,53 +168,53 @@ static DEMOS: &[Demo] = &[
                 refused before it leaves. Same enforcement as the native CLI, in WebAssembly.",
         steps: &[
             Step {
-                label: "1 · write a file",
+                label: "write a file",
                 cmd: "sink urn:file:note.txt remember the milk",
                 note: "root session — the write lands",
             },
             Step {
-                label: "2 · cap read-only",
+                label: "cap read-only",
                 cmd: "cap read-only",
                 note: "voluntarily give up authority; it can only shrink",
             },
             Step {
-                label: "3 · write → denied",
+                label: "write → denied",
                 cmd: "sink urn:file:note.txt nope",
                 note: "refused — the capability grants read, not write",
             },
             Step {
-                label: "4 · read → ok",
+                label: "read → ok",
                 cmd: "source urn:file:note.txt",
                 note: "reads still resolve under the narrowed capability",
             },
             Step {
-                label: "5 · escape jail → denied",
+                label: "escape jail → denied",
                 cmd: "source urn:file:../../etc/hosts",
                 note: "the jail refuses `..` even at root — the floor beneath the capability",
             },
             Step {
-                label: "6 · cap reset",
+                label: "cap reset",
                 cmd: "cap reset",
                 note: "back to root identity",
             },
             Step {
-                label: "7 · grant one host",
+                label: "grant one host",
                 cmd: "cap urn:cap:net:httpbin.org",
                 note: "hand an agent the web, narrowly — only httpbin.org",
             },
             Step {
-                label: "8 · fetch it → ok",
+                label: "fetch it → ok",
                 cmd: "source urn:httpGet url=https://httpbin.org/uuid",
                 note: "allowed — the URL's host is within the grant",
             },
             Step {
-                label: "9 · fetch elsewhere → denied",
+                label: "fetch elsewhere → denied",
                 cmd: "source urn:httpGet url=https://w3id.org/people/bsletten",
                 note: "refused — w3id.org isn't in the grant; it resolves fine at full authority, \
                        so the capability is the gate, not reachability",
             },
             Step {
-                label: "10 · cap reset",
+                label: "cap reset",
                 cmd: "cap reset",
                 note: "back to root identity",
             },
@@ -370,35 +370,35 @@ static DEMOS: &[Demo] = &[
                 again. Each refuses past its bound and never answers a shorter body.",
         steps: &[
             Step {
-                label: "1 · write a file",
+                label: "write a file",
                 cmd: "sink urn:file:streams.ttl \
                       <urn:ex:ada> a <urn:ex:Person> . <urn:ex:alan> a <urn:ex:Person> .",
                 note: "two triples of Turtle, 66 bytes",
             },
             Step {
-                label: "2 · read it",
+                label: "read it",
                 cmd: "source urn:file:streams.ttl",
                 note: "computed: on a native host the file answers a body that can be read \
                        again (in a browser it is a buffer, which can be read again too)",
             },
             Step {
-                label: "3 · read it again",
+                label: "read it again",
                 cmd: "source urn:file:streams.ttl",
                 note: "cached: a body that can be read again is stored like a buffer",
             },
             Step {
-                label: "4 · a byte range",
+                label: "a byte range",
                 cmd: "source urn:stream:range of=<urn:file:streams.ttl> start=0 end=12",
                 note: "`<urn:ex:ada>`, bytes 0 to 11 (`end` is exclusive): read from the \
                        offset, not collected and sliced. The answer hangs from the file's thread",
             },
             Step {
-                label: "5 · past the end → refused",
+                label: "past the end → refused",
                 cmd: "source urn:stream:range of=<urn:file:streams.ttl> start=1000",
                 note: "refused, naming the file's 66 bytes (HTTP's 416), rather than answered empty",
             },
             Step {
-                label: "6 · a one-shot stream",
+                label: "a one-shot stream",
                 cmd: "source urn:rdf:transrept content=<urn:file:streams.ttl> \
                       as=application/n-triples",
                 note: "N-Triples written as the Turtle is parsed, chunk by chunk, and answered \
@@ -406,19 +406,19 @@ static DEMOS: &[Demo] = &[
                        is a buffer, and so is this answer",
             },
             Step {
-                label: "7 · and again",
+                label: "and again",
                 cmd: "source urn:rdf:transrept content=<urn:file:streams.ttl> \
                       as=application/n-triples",
                 note: "computed again: the file did not change, but a one-shot answer is never \
                        stored",
             },
             Step {
-                label: "8 · why not stored?",
+                label: "why not stored?",
                 cmd: "why urn:rdf:transrept",
                 note: "the kernel's uncached log names the reason: `one-shot body`",
             },
             Step {
-                label: "9 · collect it",
+                label: "collect it",
                 cmd: "source urn:rdf:transrept content=<urn:file:streams.ttl> \
                       as=application/n-triples | urn:stream:collect",
                 note: "the stream piped unread into `urn:stream:collect`, which reads it into \
@@ -427,7 +427,7 @@ static DEMOS: &[Demo] = &[
                        host's ceiling). Past it the answer is OverBudget, never a shorter body",
             },
             Step {
-                label: "10 · spill it",
+                label: "spill it",
                 cmd: "source urn:rdf:transrept content=<urn:file:streams.ttl> \
                       as=application/n-triples | urn:stream:spill",
                 note: "written to the host's spill facility and answered as a body that can be \
@@ -436,13 +436,13 @@ static DEMOS: &[Demo] = &[
                        browser has none) refuses, naming it",
             },
             Step {
-                label: "11 · edit the file",
+                label: "edit the file",
                 cmd: "sink urn:file:streams.ttl \
                       <urn:ex:bob> a <urn:ex:Person> . <urn:ex:alan> a <urn:ex:Person> .",
                 note: "the write cuts the file's thread",
             },
             Step {
-                label: "12 · the range follows",
+                label: "the range follows",
                 cmd: "source urn:stream:range of=<urn:file:streams.ttl> start=0 end=12",
                 note: "`<urn:ex:bob>`, computed: the range cached in step 4 hung from the file's \
                        thread, so the write cut it too",
@@ -560,7 +560,7 @@ static DEMOS: &[Demo] = &[
                        the second is cached",
             },
             Step {
-                label: "edit: Customer ⊑ foaf:Person",
+                label: "edit: Customer is a subclass of foaf:Person",
                 cmd: "source urn:data:alignment-edit | sink urn:file:alignment.ttl",
                 note: "the alignment gains `ex:Customer rdfs:subClassOf foaf:Person`; the write \
                        cuts the file's thread, and everything computed from it",
@@ -740,33 +740,33 @@ static DEMOS: &[Demo] = &[
                 one request per graph.",
         steps: &[
             Step {
-                label: "1 · write the alignment",
+                label: "write the alignment",
                 cmd: "source urn:data:alignment | sink urn:file:thread.ttl",
                 note: "the graph the edit will change, in a file",
             },
             Step {
-                label: "2 · the two graphs",
+                label: "the two graphs",
                 cmd: "source urn:data:thread-graphs",
                 note: "urn:file:thread.ttl and urn:data:topics",
             },
             Step {
-                label: "3 · reason over each",
+                label: "reason over each",
                 cmd: "source urn:data:thread-graphs .. urn:reason:inferred",
                 note: "first time: 1 cached · 2 computed (the list was read in step 2; one \
                        closure per graph is computed)",
             },
             Step {
-                label: "4 · again",
+                label: "again",
                 cmd: "source urn:data:thread-graphs .. urn:reason:inferred",
                 note: "3 cached: nothing changed, nothing recomputes",
             },
             Step {
-                label: "5 · edit one axiom",
+                label: "edit one axiom",
                 cmd: "source urn:data:alignment-edit | sink urn:file:thread.ttl",
                 note: "the write cuts the file's thread",
             },
             Step {
-                label: "6 · again, after the edit",
+                label: "again, after the edit",
                 cmd: "source urn:data:thread-graphs .. urn:reason:inferred",
                 note: "2 cached · 1 computed: the list and the topics closure stay cached; \
                        only the closure that read the file recomputes, and it now holds \
@@ -1687,11 +1687,11 @@ fn render_html(active: &Demo) -> String {
     )
 }
 
-/// The terminal rendering: the tab list, the intro, and the steps as a numbered,
+/// The terminal rendering: the page title, tab list, intro, and steps as a numbered,
 /// runnable list. (The TUI runs a step by issuing its command; it can't run htmx.)
 fn render_text(active: &Demo) -> String {
-    let mut out = String::new();
-    // The text face honours `hide_tab` too: a host that cannot serve a page shouldn't
+    let mut out = format!("Runbook: {}\n\n", active.label);
+    // The text face honors `hide_tab` too: a host that cannot serve a page shouldn't
     // offer it in the TUI either.
     let hidden = snapshot_hidden();
     let tabs: Vec<String> = DEMOS
@@ -1743,6 +1743,63 @@ mod tests {
         let kernel = Kernel::new(Arc::new(space()));
         let rep = block_on(kernel.issue(request, &Capability::root())).unwrap();
         String::from_utf8(rep.bytes).unwrap()
+    }
+
+    /// Ledger #2701: page identity and step meaning do not depend on punctuation.
+    #[test]
+    fn text_faces_name_the_current_page() {
+        let _guard = serial();
+        for demo in DEMOS {
+            let text = source(&format!("urn:runbook:{}", demo.id), "text/plain");
+            assert_eq!(
+                text.lines().next(),
+                Some(format!("Runbook: {}", demo.label).as_str())
+            );
+        }
+    }
+
+    #[test]
+    fn revised_labels_reach_every_face() {
+        let _guard = serial();
+        let label = "edit: Customer is a subclass of foaf:Person";
+        for face in PAGE_FACES {
+            assert!(source("urn:runbook:selection", face).contains(label));
+        }
+        for (id, label) in [
+            ("zerotrust", "write a file"),
+            ("streams", "write a file"),
+            ("thread", "write the alignment"),
+        ] {
+            let iri = format!("urn:runbook:{id}");
+            assert!(source(&iri, "text/plain").contains(&format!("  1. {label}\n")));
+            assert!(source(&iri, "text/html").contains(&format!("{label}</button>")));
+            let json: serde_json::Value =
+                serde_json::from_str(&source(&iri, "application/json")).unwrap();
+            assert_eq!(json["steps"][0]["label"], label);
+        }
+    }
+
+    #[test]
+    fn subclass_step_labels_use_words() {
+        for demo in DEMOS {
+            for step in demo.steps {
+                assert!(!step.label.contains('⊑'), "{}: {}", demo.id, step.label);
+            }
+        }
+    }
+
+    #[test]
+    fn step_labels_do_not_repeat_list_numbers() {
+        for demo in DEMOS {
+            for step in demo.steps {
+                assert!(
+                    !step.label.starts_with(|c: char| c.is_ascii_digit()),
+                    "{}: {}",
+                    demo.id,
+                    step.label
+                );
+            }
+        }
     }
 
     /// Ledger #1643: the structure of the HTML face (tabs pattern, landmark, heading,
@@ -1959,10 +2016,14 @@ mod tests {
         assert!(!tab_ids().iter().any(|id| id == "lisp"));
         assert!(tab_ids().iter().any(|id| id == "basics"));
 
-        // The text face honours it too.
+        // The text face honors it too.
         let text = source("urn:runbook:basics", "text/plain");
-        assert!(!text.lines().next().unwrap().contains("Lisp"));
-        assert!(text.lines().next().unwrap().contains("Basics"));
+        let tabs = text
+            .lines()
+            .find(|line| line.starts_with("runbook · "))
+            .unwrap();
+        assert!(!tabs.contains("Lisp"));
+        assert!(tabs.contains("Basics"));
     }
 
     /// Hiding is presentation, not unbinding: the page still resolves (a host can be

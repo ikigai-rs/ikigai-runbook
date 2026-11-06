@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.4.0"  # Public API now uses core 0.3 types (ledger #3072).
+version = "0.4.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
