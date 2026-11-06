@@ -111,32 +111,30 @@ fn n_triples(first: &str) -> String {
 fn check(label: &str, out: &Result<String, String>, cache: &str) -> bool {
     let ada = n_triples("ada");
     match label {
-        "1 · write a file" | "11 · edit the file" => {
+        "write a file" | "edit the file" => {
             matches!(out, Ok(t) if t == "wrote 66 bytes to streams.ttl")
         }
-        "2 · read it" => {
+        "read it" => {
             cache == "computed"
                 && matches!(out, Ok(t) if t.starts_with("<urn:ex:ada> a <urn:ex:Person> ."))
         }
-        "3 · read it again" => cache == "cached" && out.as_ref().is_ok_and(|t| t.len() == 66),
-        "4 · a byte range" => cache == "computed" && matches!(out, Ok(t) if t == "<urn:ex:ada>"),
-        "5 · past the end → refused" => {
+        "read it again" => cache == "cached" && out.as_ref().is_ok_and(|t| t.len() == 66),
+        "a byte range" => cache == "computed" && matches!(out, Ok(t) if t == "<urn:ex:ada>"),
+        "past the end → refused" => {
             matches!(out, Err(e) if e.contains("past the end") && e.contains("(66 bytes)"))
         }
         // Computed both times: the file under it is cached, so nothing but the one-shot
         // body keeps the answer from being stored.
-        "6 · a one-shot stream" | "7 · and again" => {
+        "a one-shot stream" | "and again" => {
             cache == "computed" && matches!(out, Ok(t) if *t == ada)
         }
         // The one reason logged, twice: no dependency of the file's, no other cause.
-        "8 · why not stored?" => matches!(out, Ok(t) if t
+        "why not stored?" => matches!(out, Ok(t) if t
             .lines()
             .filter(|l| l.trim_start().starts_with("uncached"))
             .eq(["  uncached    ×2  one-shot body  [root]"])),
-        "9 · collect it" | "10 · spill it" => matches!(out, Ok(t) if *t == ada),
-        "12 · the range follows" => {
-            cache == "computed" && matches!(out, Ok(t) if t == "<urn:ex:bob>")
-        }
+        "collect it" | "spill it" => matches!(out, Ok(t) if *t == ada),
+        "the range follows" => cache == "computed" && matches!(out, Ok(t) if t == "<urn:ex:bob>"),
         _ => false,
     }
 }
@@ -169,8 +167,8 @@ fn a_range_is_stored_until_the_file_is_written() {
             .expect("the step")
     };
     let engine = Engine::new(kernel(false));
-    assert!(run(&engine, &cmd("1 · write a file")).0.is_ok());
-    let range = cmd("4 · a byte range");
+    assert!(run(&engine, &cmd("write a file")).0.is_ok());
+    let range = cmd("a byte range");
     assert_eq!(run(&engine, &range).1, "computed");
     assert_eq!(run(&engine, &range).1, "cached");
 }
@@ -187,9 +185,9 @@ fn without_a_spill_facility_the_spill_step_is_refused_by_name() {
             .map(|(_, c)| c.clone())
             .expect("the step")
     };
-    let spill = cmd("10 · spill it");
+    let spill = cmd("spill it");
     let engine = Engine::new(kernel(false));
-    assert!(run(&engine, &cmd("1 · write a file")).0.is_ok());
+    assert!(run(&engine, &cmd("write a file")).0.is_ok());
     let (out, _) = run(&engine, &spill);
     assert!(
         matches!(&out, Err(e) if e.contains("no spill facility")),

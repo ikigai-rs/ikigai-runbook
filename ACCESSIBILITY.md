@@ -37,7 +37,7 @@ renders these pages owns how they look.
 - **The HTML face** (`as=text/html`) of every page, `urn:runbook:basics` through
   `urn:runbook:lisp` (the Bytes page, `urn:runbook:bytes`, and the Streams page, `urn:runbook:streams`, included): the tab strip (`render_tab_strip`, also used by a host's own tabs), the panel
   with its intro, its numbered steps, the "clear output" button and the output region.
-- **The text face** (`as=text/plain`): the tab list with the active tab in brackets, the intro, and
+- **The text face** (`as=text/plain`): the page title, the tab list with the active tab in brackets, the intro, and
   the numbered steps with their commands and notes.
 - **The JSON face** (`as=application/json`), as far as it carries the same labels and notes.
 
@@ -188,6 +188,7 @@ a reported barrier is fixed, and before any conformance claim.
 | 2026-10-17 | Tabs follow the APG pattern; navigation landmark kept; heading added; step names carry the command; backticks render as code; output no longer a live region (ledger #1643) | unit tests on the markup; no browser or assistive-technology run |
 | 2026-10-17 | Inline `hx-on` handlers moved into the served `urn:runbook:script`, attached by delegation (ledger #1812) | unit tests on the markup and the script text; no browser run |
 | 2026-10-25 | The Bytes page (`urn:runbook:bytes`, ledger #2259): the same tab, step and output markup as every page; its step labels are words, not symbols alone ("gzip, then gunzip"), and every step's command is run through the real engine by `tests/bytes_demo.rs` | unit tests on the markup and the engine test; no browser or assistive-technology run |
+| 2026-11-05 | Step labels spell out the subclass relation and omit list numbers; the text face starts with the current page title (ledger #2701) | regression tests over every page; no browser or assistive-technology run |
 
 ## References
 
