@@ -35,7 +35,8 @@ ikigai-conformance = "0.14.0"
 # 0.2.5 is a TEST floor (ledger #2523): before it a map ran once more on a final newline, so the
 # Thread page's `source urn:data:thread-graphs .. urn:reason:inferred` sent an empty `graph` and was refused.
 # Measured 2026-10-30: engine 0.2.1 fails `an_edit_recomputes_only_what_read_it`; 0.2.5 (resolved at `=0.2.5`) and 0.2.11 pass.
-ikigai-engine = "0.3.0"
+# Engine 0.4.0 adds Engine::with_scope (ledger #3081) while retaining core 0.3 compatibility.
+ikigai-engine = "0.4.0"
 ikigai-compress = "0.5.0"
 ikigai-sniff = "0.5.0"
 # The OWL 2 RL demos' steps (`tests/reasoning_demos.rs`), run through the same engine over
