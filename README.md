@@ -136,7 +136,9 @@ ikigai_runbook::add_tab("identity", "Identity"); // web-demo's browser-only tab
 ikigai_runbook::hide_tab("lisp");                // …which has no urn:lisp:eval to run
 ```
 
-`add_tab(id, label)` is idempotent (a host may build its kernel more than once). The host also
+`add_tab(id, label)` is idempotent (a host may build its kernel more than once). An id
+already registered, including a built-in id, keeps its original label and position. Extra tabs
+appear after the built-ins in registration order in both the HTML and text strips. The host also
 binds `urn:runbook:<id>` itself; that endpoint's `text/html` representation should lead with
 `render_tab_strip(<id>)` so the strip stays identical across every tab — the native CLI simply
 never registers any extras.
