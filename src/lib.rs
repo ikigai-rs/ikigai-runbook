@@ -1502,11 +1502,15 @@ fn hidden_tabs() -> &'static std::sync::Mutex<Vec<String>> {
     HIDDEN.get_or_init(|| std::sync::Mutex::new(Vec::new()))
 }
 
-/// Register an extra tab so it appears in the runbook strip on every panel. The host
-/// also binds `urn:runbook:<id>`; that endpoint's `text/html` representation should lead
+/// Register an extra tab so it appears in the runbook strip on every panel. An id
+/// already registered (including a built-in id) keeps its original label and position.
+/// The host also binds `urn:runbook:<id>`; that endpoint's `text/html` representation should lead
 /// with [`render_tab_strip`]`(<id>)` so the strip stays identical across tabs.
 pub fn add_tab(id: impl Into<String>, label: impl Into<String>) {
     let id = id.into();
+    if DEMOS.iter().any(|demo| demo.id == id) {
+        return;
+    }
     let mut tabs = extra_tabs().lock().expect("runbook tabs");
     // Idempotent: a host may build its kernel more than once (the in-page singleton,
     // the server, tests) — register the tab at most once.
@@ -1568,14 +1572,7 @@ pub fn hide_tab(id: impl Into<String>) {
 /// minus any [`hide_tab`]s. The observable form of what the strips render — a host that
 /// wants a mistyped [`hide_tab`] to be loud can assert against this.
 pub fn tab_ids() -> Vec<String> {
-    let hidden = snapshot_hidden();
-    let extra = snapshot_extra();
-    DEMOS
-        .iter()
-        .map(|d| d.id.to_string())
-        .chain(extra.into_iter().map(|(id, _)| id))
-        .filter(|id| !hidden.contains(id))
-        .collect()
+    visible_tabs().into_iter().map(|(id, _)| id).collect()
 }
 
 /// Copy the extra tabs out from under the lock. Both snapshot helpers exist so that the
@@ -1592,6 +1589,19 @@ fn snapshot_hidden() -> Vec<String> {
     hidden_tabs().lock().expect("runbook hidden tabs").clone()
 }
 
+/// One ordered snapshot for every strip face and the host's `tab_ids` view.
+fn visible_tabs() -> Vec<(String, String)> {
+    // Copy host state before formatting; rendering holds no global lock.
+    let hidden = snapshot_hidden();
+    let extra = snapshot_extra();
+    DEMOS
+        .iter()
+        .map(|d| (d.id.to_string(), d.label.to_string()))
+        .chain(extra)
+        .filter(|(id, _)| !hidden.contains(id))
+        .collect()
+}
+
 /// The htmx tab strip — the built-in demos plus any host [`add_tab`]s, minus any
 /// [`hide_tab`]s — with `active` marked `selected`. Public so a host's extra-tab endpoint
 /// renders the identical strip (HATEOAS: every tab carries the whole strip, so "which tab
@@ -1600,17 +1610,7 @@ fn snapshot_hidden() -> Vec<String> {
 /// If `active` is a hidden id the strip simply has no selected tab; the panel below it
 /// still renders, because hiding a tab does not unbind its resource.
 pub fn render_tab_strip(active: &str) -> String {
-    // Snapshot first, then render: no allocation-heavy formatting and no re-entrancy
-    // while the process-global locks are held.
-    let hidden = snapshot_hidden();
-    let extra = snapshot_extra();
-
-    let all: Vec<(String, String)> = DEMOS
-        .iter()
-        .map(|d| (d.id.to_string(), d.label.to_string()))
-        .chain(extra)
-        .filter(|(id, _)| !hidden.contains(id))
-        .collect();
+    let all = visible_tabs();
     // Roving tabindex: the selected tab is the one Tab stop of the strip; with none
     // selected (the active page is hidden) the first tab stands in, so the strip stays
     // reachable.
@@ -1691,17 +1691,13 @@ fn render_html(active: &Demo) -> String {
 /// runnable list. (The TUI runs a step by issuing its command; it can't run htmx.)
 fn render_text(active: &Demo) -> String {
     let mut out = format!("Runbook: {}\n\n", active.label);
-    // The text face honors `hide_tab` too: a host that cannot serve a page shouldn't
-    // offer it in the TUI either.
-    let hidden = snapshot_hidden();
-    let tabs: Vec<String> = DEMOS
-        .iter()
-        .filter(|d| !hidden.iter().any(|h| h == d.id))
-        .map(|d| {
-            if d.id == active.id {
-                format!("[{}]", d.label)
+    let tabs: Vec<String> = visible_tabs()
+        .into_iter()
+        .map(|(id, label)| {
+            if id == active.id {
+                format!("[{label}]")
             } else {
-                d.label.to_string()
+                label
             }
         })
         .collect();
@@ -2083,6 +2079,44 @@ mod tests {
 
         assert_eq!(before, render_tab_strip("basics"));
         assert_eq!(ids_before, tab_ids());
+    }
+
+    #[test]
+    fn host_tabs_appear_in_source_order_in_both_strips() {
+        let _guard = serial();
+        add_tab("audit-first", "Audit café");
+        add_tab("audit-second", "Audit second");
+        add_tab("audit-first", "Ignored replacement");
+
+        let html = render_tab_strip("basics");
+        let text = source("urn:runbook:basics", "text/plain");
+        let tabs = text
+            .lines()
+            .find(|line| line.starts_with("runbook · "))
+            .unwrap();
+        assert!(html.find("Audit café").unwrap() < html.find("Audit second").unwrap());
+        assert!(
+            tabs.contains("Audit café"),
+            "host tab missing from text: {tabs}"
+        );
+        assert!(tabs.find("Audit café").unwrap() < tabs.find("Audit second").unwrap());
+        assert_eq!(tabs.matches("Audit café").count(), 1);
+        assert!(!tabs.contains("Ignored replacement"));
+        hide_tab("audit-first");
+        let text = source("urn:runbook:basics", "text/plain");
+        assert!(!text.contains("Audit café"));
+        assert!(text.contains("Audit second"));
+        hide_tab("audit-second");
+    }
+
+    #[test]
+    fn registering_a_builtin_tab_does_not_duplicate_it() {
+        let _guard = serial();
+        let before = render_tab_strip("basics");
+        let ids = tab_ids();
+        add_tab("basics", "Duplicate basics");
+        assert_eq!(tab_ids(), ids, "built-in id registered twice");
+        assert_eq!(render_tab_strip("basics"), before);
     }
 
     /// Hiding works on a host's own `add_tab` too, not just the built-ins.
