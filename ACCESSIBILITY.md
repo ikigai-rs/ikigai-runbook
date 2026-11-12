@@ -19,7 +19,7 @@ Adapted from the [ACCESSIBILITY.md template](https://github.com/mgifford/ACCESSI
 | Private channel | [private vulnerability reporting](https://github.com/ikigai-rs/ikigai-runbook/security/advisories/new), for anything security-sensitive |
 | Target | WCAG 2.2 Level AA, for the markup and text this crate emits |
 | Status | Evaluation in progress. No conformance claim. |
-| Last reviewed | 2026-10-15 |
+| Last reviewed | 2026-11-12 |
 | Next review | when `render_tab_strip`, `render_html` or `render_text` changes, when a page is added, or when axe-core changes version |
 
 ## Commitment
@@ -59,56 +59,60 @@ renders these pages owns how they look.
 
 ## Conformance status
 
-**Evaluation in progress** against WCAG 2.2 AA. One automated run over the HTML face of every page
-found no violation of axe's rules, which says the markup is well formed for the rules axe checks,
-not that the pages work for a person. No accessibility check runs in CI, nothing has been checked
-in a host's styling, and **no screen reader has been used.** Do not infer a conformance claim from
-a green build or from this file.
+**Evaluation in progress** against WCAG 2.2 AA. No conformance claim. What runs today is
+`cargo test`, which asserts the markup and text this crate emits; no accessibility checker runs
+in CI, nothing has been checked in a host's styling, and **no screen reader has been used.** Do
+not infer a conformance claim from a green build or from this file.
 
-## Evidence
+## How it is tested
 
-The crate's tests run on every pull request (`.github/workflows/ci.yml`); the axe run below does
-not run in CI and gates nothing.
+Every check this file names has a result: Pass, Fail or Blocked, with its evidence. A Pass covers
+only the check it names, not the accessibility of the pages. Each Pass below was run on `main` at
+`506b84c` on 2026-11-12 with `cargo test` (cargo 1.99.1, rustc 1.99.1, macOS), and CI
+(`.github/workflows/ci.yml`) runs the same tests on every pull request. A historical run that CI
+does not repeat is Blocked, with its date.
 
-| Check | Version | What it covers | What it does not cover |
-|---|---|---|---|
-| Unit tests in `src/lib.rs` (`cargo test`) | none | The faces each page serves, and the tab strip: a hidden tab is gone from both the HTML and the text strip, and when the active page is hidden no tab carries `aria-selected="true"` | Any other accessibility property; the tab strip's roles, roving tabindex and `aria-controls`, the panel's heading and `aria-labelledby`, step names, the status line and inline code are asserted on the markup (no browser, no keyboard) |
-| axe-core in Google Chrome over every page's HTML face (a one-off script, not in this repository) | axe-core 4.10.3, playwright-core 1.63.0, Chrome 153.0.8010.54 on macOS | The 12 pages, each fragment rendered through a kernel and placed in a minimal page (`lang`, a title, a `<main>`, a heading, a named `<section id="runbook">`), the way a host embeds it. All of axe's rules | Any host's styling (the fragment has none, so color and size results say nothing); the page after a step has run (the output region was empty); a tab switch |
-| Tab walk, same run | as above | Which controls take focus, in order, on each page: every tab, then every step, then "clear output" (15 to 24 stops a page) | Arrow keys; Enter and Space; focus after activation |
+| Check | Result | Evidence |
+|---|---|---|
+| Tabs pattern on the HTML face: a `<nav>` landmark holding a `role="tablist"`, every tab with `aria-controls="rb-panel"`, one tab stop (roving `tabindex`), the selected tab with `aria-selected="true"`, the panel named by its `<h2>` through `aria-labelledby` | Pass | `the_html_face_follows_the_tabs_pattern` in `src/lib.rs`. Asserted on the Basics page's markup only; no browser, no keyboard, no accessibility tree. |
+| One tab stop when no tab is selected (the active page hidden) | Pass | `a_strip_with_nothing_selected_keeps_one_tab_stop` and `a_hidden_page_still_resolves_and_selects_nothing` in `src/lib.rs`. Markup only. |
+| Step buttons are named by their label and command; status is a `role="status"` line, and no `aria-live` region reads out whole answers; backticks render as `<code>` | Pass | `the_html_face_follows_the_tabs_pattern` and `prose_pairs_backticks_and_escapes` in `src/lib.rs`. Basics page markup only; whether a status message is announced is not checked (see Screen reader). |
+| No inline handlers, `javascript:` URLs or inline scripts on any page; the behavior is the one served script, which handles arrow keys and the status line without `eval` | Pass | `the_html_face_has_no_inline_handlers` in `src/lib.rs`, over all 19 pages. Checks the markup and the script's text; the script has not run in a browser. |
+| Step labels are words, not symbols alone, and do not repeat the list number; a revised label reaches the HTML, text and JSON faces | Pass | `subclass_step_labels_use_words`, `step_labels_do_not_repeat_list_numbers` and `revised_labels_reach_every_face` in `src/lib.rs`, over every page's steps. Whether a label is understandable is for a person to judge, and none has. |
+| The text face starts by naming the current page | Pass | `text_faces_name_the_current_page` in `src/lib.rs`, over all 19 pages. The active tab in brackets and the numbered steps are in `render_text` but no test asserts the brackets. |
+| A hidden or host-added tab is consistent across the HTML strip and the text face, in source order, never duplicated | Pass | `hide_tab_removes_the_tab_everywhere_it_is_rendered`, `host_tabs_appear_in_source_order_in_both_strips`, `registering_a_builtin_tab_does_not_duplicate_it` and the other `hide_tab` tests in `src/lib.rs`. |
+| Labels and commands holding markup or quotes render as text, not markup | Pass | `a_tab_label_holding_markup_renders_as_text` and `a_command_with_quotes_is_escaped_in_attribute_and_text` in `src/lib.rs`. |
+| A face outside `text/html`, `text/plain` and `application/json` is refused in words that name `as` and the three faces, not answered with HTML | Pass | `an_as_outside_the_page_faces_is_refused_by_name`, `a_face_with_a_parameter_or_other_case_still_serves` and `a_by_reference_as_is_refused_not_defaulted` in `src/lib.rs`. Checks the refusal's text, not how a host shows it. |
+| A step does what its note says (Bytes, Streams and the OWL 2 RL pages) | Pass | `tests/bytes_demo.rs`, `tests/streams_demo.rs` and `tests/reasoning_demos.rs`, each step's command run through `ikigai-engine` 0.4. Checks the output against the note, not how the output reads. |
+| Automated accessibility checker (axe) | Blocked | Not run on current `main`: no browser or axe was available for this update, and none runs in CI. Historical: on 2026-10-15, against `main` at `158b6db`, axe-core 4.10.3 (playwright-core 1.63.0, Chrome 153.0.8010.54 headless, macOS) found no violations and nothing incomplete on the 12 pages that then existed, each fragment in a minimal page, with the output region empty. A one-off script not in this repository; the 7 pages added since (Bytes, Streams and the five OWL 2 RL pages) were never part of it. |
+| Tab walk in a browser | Blocked | Not run on current `main`. Historical: the same 2026-10-15 run found every tab, then every step, then "clear output" in focus order (15 to 24 stops a page). That was before the tabs took a roving tabindex (PR 27), so it does not describe today's markup. |
+| Manual keyboard: arrow keys, Enter and Space, focus after a tab swap | Blocked | No person has done a keyboard pass, and no browser has run the served script; no interactive browser session was available for this update. |
+| In a host's styling: contrast, focus indicator, zoom, reflow at 320 px | Blocked | This crate emits no styles; no host (`ikigai-web-demo`, `ikigai-cli`) has been checked with the runbook in it. |
+| Screen reader | Blocked | No screen reader has been used on any face; no screen-reader session was available for this update. |
+| Screen magnifier | Blocked | No screen magnifier has been used; no magnifier session was available for this update. |
+| Speech input | Blocked | No speech-input software has been used; no speech-input session was available for this update. |
+| Switch access | Blocked | No switch-access software has been used; no switch-access session was available for this update. |
+| Braille display | Blocked | No braille display has been used, on the HTML face or the text face in a terminal; none was available for this update. |
 
-On 2026-10-15, against `main` at `158b6db`: axe reported no violations and nothing incomplete on
-any of the 12 pages. The Bytes page (`urn:runbook:bytes`, added 2026-10-25) was not part of that
-run and has had no browser check. Nor have the five OWL 2 RL pages added 2026-10-30
-(`urn:runbook:vocabularies`, `typing`, `topics`, `thread` and `bounds`), or the six steps added
-to Selection that day: they use the same markup, and only `cargo test` has run over them. Their
-outputs can be long (a closure in Turtle, with OWL RL's `a owl:Thing` lines), which makes the
-known gap below, an answer that is not read out, larger on those pages.
-Nor has the Streams page (`urn:runbook:streams`, added 2026-10-31) had a browser check: the
-same markup, twelve steps, and only `cargo test` has run over it.
+How the steps read, whether the notes explain enough, and how a long answer sounds when it
+arrives are for a person to judge, and none of that has been done.
 
-How the steps read, whether the notes explain enough, and how the output region sounds when a long
-answer arrives are for a person to judge, and none of that has been done.
+### ikigai-ui's per-kind criteria
 
-## Browsers and assistive technology, as tested
-
-Only what has actually been run. This is not a list of what is supported.
-
-| Platform | Browser | Assistive technology | What | When |
-|---|---|---|---|---|
-| macOS | Google Chrome 153.0.8010.54, headless | none | The axe run and the Tab walk above, over the 12 HTML fragments in a minimal page | 2026-10-15 |
-
-**No screen reader, screen magnifier, speech-input or switch-access software has been used to test
-this repository.** No other browser has been run, and the text face has not been read in a
-terminal with assistive technology.
+This crate does not use ikigai-ui or its per-kind accessibility criteria
+(`urn:iki:ui:criterion:kind:{kind}:target:{target}`): it depends on `ikigai-core` and `ikigai-fn`
+only and writes its own markup, so no ikigai-ui kind's SEE or HEAR checks apply to it, and its
+tests verify none of them. Its own checks are the table above.
 
 ## Known limitations
 
-From reading the source on 2026-10-15 and 2026-10-17; the axe run reported none of these.
+From reading the source on 2026-10-15 and 2026-10-17, and still true of `main` on 2026-11-12; no
+tool reported these.
 
 | Barrier or gap | Where | Impact | Workaround |
 |---|---|---|---|
 | Untested in a browser: after a tab swap, focus returns to the new tab only if htmx restores focus by element id (it does by default; no host has been checked), and the arrow-key handler is in a script the page loads (`urn:runbook:script`, no inline handlers, so no `eval`), which a host must let load from its own origin and which no browser has run. Tabs a host adds with `add_tab` also carry `aria-controls="rb-panel"`, which dangles if the host's panel has another id | the tab strip | Focus or arrow keys may not work in a host that differs from the assumptions | Tab and Enter work on every tab |
-| The status line ("Ran <label>", "Output cleared") is set by the same served script, from `data-rb-status` attributes; the output region is no longer announced, so a screen-reader user reaches the answer by moving to the "Output" region | the steps and the output | The answer is not read out on its own | Move to the Output region after running a step |
+| The status line ("Ran <label>", "Output cleared") is set by the same served script, from `data-rb-status` attributes; the output region is not announced, so a screen-reader user reaches the answer by moving to the "Output" region. The OWL 2 RL pages' outputs can be long (a closure in Turtle), which makes this gap larger there | the steps and the output | The answer is not read out on its own | Move to the Output region after running a step |
 
 No list like this is complete. Please report what you find.
 
@@ -117,7 +121,8 @@ No list like this is complete. Please report what you find.
 A change to anything in scope:
 
 1. runs `cargo test` (CI runs it too, and it must pass); no automated accessibility check exists
-   in CI, so a change to the HTML a page renders says in its pull request how it was checked;
+   in CI, so a change to the HTML a page renders says in its pull request how it was checked, in
+   the table below;
 2. keeps native semantics, uses `<button>` for anything a person activates, adds ARIA only where
    HTML cannot say it and then follows the pattern it names, and keeps visible labels as the
    accessible names (SC 2.5.3);
@@ -128,14 +133,22 @@ A change to anything in scope:
 
 ### Pull request evidence
 
+In the pull request's `## Accessibility` section, give each check in *How it is tested* that the
+change touches a row: Pass, Fail or Blocked, with the test or command, the tool and its version,
+or why it could not run. A check nobody ran is Blocked, never omitted and never "not applicable",
+including a screen reader nobody used.
+
 ```markdown
 ## Accessibility
 
-- What a user does differently, and which pages and faces it touches:
-- Automated: cargo test: pass / fail; any browser check run, with its tool and version:
-- In a host (which one), by hand (keyboard, zoom, narrow screen), with browser and version, or "not done":
-- Assistive technology, with name and version, or "not tested":
-- Not tested, and known limitations:
+What a user does differently, and which pages and faces it touches:
+
+| Check | Result | Evidence |
+|---|---|---|
+| cargo test | Pass / Fail | test names, cargo and rustc version |
+| Browser check (axe, Tab walk) | Pass / Fail / Blocked | tool, version and page, or why it could not run |
+| Keyboard by hand, in a host | Pass / Fail / Blocked | host, browser and version, or why it could not run |
+| Screen reader | Blocked | not used |
 ```
 
 ## Coding agents and automation
@@ -184,11 +197,15 @@ a reported barrier is fixed, and before any conformance claim.
 
 | Date | Change | Evidence |
 |---|---|---|
-| 2026-10-15 | This file, from one axe run over every page's HTML face and a Tab walk | this pull request |
-| 2026-10-17 | Tabs follow the APG pattern; navigation landmark kept; heading added; step names carry the command; backticks render as code; output no longer a live region (ledger #1643) | unit tests on the markup; no browser or assistive-technology run |
-| 2026-10-17 | Inline `hx-on` handlers moved into the served `urn:runbook:script`, attached by delegation (ledger #1812) | unit tests on the markup and the script text; no browser run |
-| 2026-10-25 | The Bytes page (`urn:runbook:bytes`, ledger #2259): the same tab, step and output markup as every page; its step labels are words, not symbols alone ("gzip, then gunzip"), and every step's command is run through the real engine by `tests/bytes_demo.rs` | unit tests on the markup and the engine test; no browser or assistive-technology run |
-| 2026-11-05 | Step labels spell out the subclass relation and omit list numbers; the text face starts with the current page title (ledger #2701) | regression tests over every page; no browser or assistive-technology run |
+| 2026-10-15 | This file, from one axe run over every page's HTML face and a Tab walk | PR 25 |
+| 2026-10-17 | Tabs follow the APG pattern; navigation landmark kept; heading added; step names carry the command; backticks render as code; output no longer a live region | PR 27: unit tests on the markup; no browser or assistive-technology run |
+| 2026-10-17 | Inline `hx-on` handlers moved into the served `urn:runbook:script`, attached by delegation | PR 28: unit tests on the markup and the script text; no browser run |
+| 2026-10-25 | The Bytes page (`urn:runbook:bytes`): the same tab, step and output markup as every page; its step labels are words, not symbols alone ("gzip, then gunzip"), and every step's command is run through the real engine by `tests/bytes_demo.rs` | PR 31: unit tests on the markup and the engine test; no browser or assistive-technology run |
+| 2026-10-30 | Five OWL 2 RL pages (`vocabularies`, `typing`, `topics`, `thread`, `bounds`) and six Selection steps, with the same markup | PR 36: `cargo test` and `tests/reasoning_demos.rs`; no browser or assistive-technology run |
+| 2026-10-31 | The Streams page (`urn:runbook:streams`), twelve steps with the same markup | PR 38: `cargo test` and `tests/streams_demo.rs`; no browser or assistive-technology run |
+| 2026-11-05 | Step labels spell out the subclass relation and omit list numbers; the text face starts with the current page title | PR 42: regression tests over every page; no browser or assistive-technology run |
+| 2026-11-11 | Host-added tabs reach the text face, in order, and a built-in id is not registered twice | PR 44: unit tests over both strips; no browser or assistive-technology run |
+| 2026-11-12 | This file in Pass / Fail / Blocked form: every check has a result and its evidence; the browser runs that CI does not repeat are Blocked with their date; ikigai-ui's per-kind criteria stated as not used | this pull request: `cargo test` on `main` at `506b84c`; no browser or assistive-technology run |
 
 ## References
 
