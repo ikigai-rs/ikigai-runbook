@@ -10,6 +10,9 @@ use ikigai_core::{
 };
 use ikigai_engine::{Action, Engine};
 
+// The engine is on core 0.3 until wave 4 (see the manifest).
+mod old_core;
+
 struct JsonRenderer;
 
 impl MetaRenderer for JsonRenderer {
@@ -27,6 +30,29 @@ impl MetaRenderer for JsonRenderer {
 
 fn kernel() -> Kernel {
     Kernel::with_meta_renderer(Arc::new(ikigai_runbook::space()), Arc::new(JsonRenderer))
+}
+
+struct OldJsonRenderer;
+
+impl ikigai_core_for_old_modules::MetaRenderer for OldJsonRenderer {
+    fn render(
+        &self,
+        description: &ikigai_core_for_old_modules::Description,
+        _target: &ikigai_core_for_old_modules::ReprType,
+    ) -> ikigai_core_for_old_modules::Result<ikigai_core_for_old_modules::Representation> {
+        Ok(ikigai_core_for_old_modules::Representation::new(
+            ikigai_core_for_old_modules::ReprType::new("application/json"),
+            serde_json::to_vec(description).expect("serialize description"),
+        ))
+    }
+}
+
+/// The kernel the engine drives: core 0.3, over the bridge to this crate's space.
+fn engine_kernel() -> ikigai_core_for_old_modules::Kernel {
+    ikigai_core_for_old_modules::Kernel::with_meta_renderer(
+        Arc::new(old_core::runbook_space()),
+        Arc::new(OldJsonRenderer),
+    )
 }
 
 #[test]
@@ -58,7 +84,7 @@ fn a_pipe_reaches_the_single_required_action_input() {
             "Geocoded: Hello, Ada!",
         ),
     ] {
-        match block_on(Engine::new(kernel()).eval_async(line)) {
+        match block_on(Engine::new(engine_kernel()).eval_async(line)) {
             Action::Output(entry) => assert_eq!(entry.result.unwrap().trim_end(), expected),
             _ => panic!("no output"),
         }
