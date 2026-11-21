@@ -1,6 +1,6 @@
 [package]
 name = "ikigai-runbook"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Brian Sletten <brian.sletten@gmail.com>"]
@@ -13,10 +13,11 @@ categories = ["web-programming"]
 [dependencies]
 # Core 0.3 scopes held content to the delivering principal and makes unscoped writes
 # root-only (scoped content store, ledger #2965).
-ikigai-core = "0.3.0"
+# core 0.4.0 (scope opacity, structured denials; the cascade, epic #3893, ledger #3932).
+ikigai-core = "0.4.0"
 # Structured (application/json) representation for non-HTML hosts — the TUI sources
-# it to drive step-running by number.
-ikigai-fn = "0.10.0"
+# it to drive step-running by number. 0.12.0 is its release on core 0.4 (the cascade).
+ikigai-fn = "0.12.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
@@ -27,11 +28,11 @@ futures = "0.3"
 # binds, every action each declares, every checkable rule at once. 0.6.0 added SPACE-NAME
 # (`self_named_space`), 0.7.0 VALIDATE, 0.8.0 REQUIRED, 0.9.0 contract shape + RECOMPUTE, 0.10.0 FAILURES (off), 0.11.0 core 0.2 with
 # DATATYPES and FAILURES on by default, 0.12.0 BODIES and BODY-INPUTS on by default (ledger
-# #2559). 0.14.0 moves the recipe to core 0.3 (ledger #3072).
-ikigai-conformance = "0.14.0"
+# #2559). 0.14.0 moves the recipe to core 0.3 (ledger #3072). 0.15.0 is the recipe on core 0.4
+# (the cascade, epic #3893).
+ikigai-conformance = "0.15.0"
 # The Bytes demo's steps, run through the real REPL engine over the modules they name
 # (`tests/bytes_demo.rs`): pipe routing lives in the engine, so only the engine shows it.
-# All ikigai dependencies, including dev-dependencies, use core 0.3 (ledger #3072).
 # 0.2.5 is a TEST floor (ledger #2523): before it a map ran once more on a final newline, so the
 # Thread page's `source urn:data:thread-graphs .. urn:reason:inferred` sent an empty `graph` and was refused.
 # Measured 2026-10-30: engine 0.2.1 fails `an_edit_recomputes_only_what_read_it`; 0.2.5 (resolved at `=0.2.5`) and 0.2.11 pass.
@@ -48,3 +49,12 @@ ikigai-reason = "0.5.0"
 ikigai-rdf = "0.5.0"
 ikigai-sparql = "0.5.0"
 ikigai-fs = "0.4.1"
+# TEST ONLY: the seven crates above (engine, compress, sniff, reason, rdf, sparql, fs) stay on
+# their releases built on core 0.3, which keeps core 0.3 in the test build and nowhere else.
+# `ikigai-core-for-old-modules` names that core so `tests/old_core/mod.rs` can drive them in a
+# kernel of their own, with this crate's core 0.4 space behind a bridge: requests, bytes and
+# descriptions cross, nothing else. The engine tests return to one kernel when ikigai-engine
+# ships on core 0.4 in wave 4 of the core 0.4.0 cascade (epic #3893); this alias, the bridge
+# and `async-trait` go then, with each of the other crates moved to its core 0.4 release.
+ikigai-core-for-old-modules = { package = "ikigai-core", version = "0.3.5" }
+async-trait = "0.1"
