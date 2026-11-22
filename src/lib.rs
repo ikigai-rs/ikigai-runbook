@@ -25,6 +25,7 @@ use ikigai_core::{
     Representation, Result, Verb,
 };
 use ikigai_fn::html::{attr, html_text};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 /// The name [`space`] claims: `urn:iki:space:runbook`.
 pub const SPACE_ID: &str = "urn:iki:space:runbook";
@@ -1555,9 +1556,9 @@ pub fn add_tab(id: impl Into<String>, label: impl Into<String>) {
 /// ikigai_runbook::add_tab("identity", "Identity");
 /// ikigai_runbook::hide_tab("lisp");
 ///
-/// let strip = ikigai_runbook::render_tab_strip("basics");
-/// assert!(strip.contains("urn:runbook:identity"));
-/// assert!(!strip.contains("urn:runbook:lisp"));
+/// let ids = ikigai_runbook::tab_ids();
+/// assert!(ids.iter().any(|id| id == "identity"));
+/// assert!(!ids.iter().any(|id| id == "lisp"));
 /// ```
 pub fn hide_tab(id: impl Into<String>) {
     let id = id.into();
@@ -1626,10 +1627,12 @@ pub fn render_tab_strip(active: &str) -> String {
     );
     for (n, (id, label)) in all.iter().enumerate() {
         let selected = id == active;
+        let command = format!("source urn:runbook:{id} as=text/html");
+        let command_url = utf8_percent_encode(&command, NON_ALPHANUMERIC);
         tabs.push_str(&format!(
             "<button role=\"tab\" id=\"rb-tab-{id}\" class=\"rb-tab{cls}\" \
              aria-selected=\"{sel}\" aria-controls=\"rb-panel\" tabindex=\"{ti}\" \
-             hx-get=\"/k/source urn:runbook:{id} as=text/html\" \
+             hx-get=\"/k/{command_url}\" \
              hx-target=\"#runbook\" hx-swap=\"innerHTML\">{label}</button>",
             cls = if selected { " selected" } else { "" },
             sel = selected,
@@ -1645,18 +1648,20 @@ pub fn render_tab_strip(active: &str) -> String {
 /// The htmx HATEOAS fragment: the tab strip (active tab marked) followed by the
 /// active demo's panel. Switching tabs `hx-get`s another `urn:runbook:*` into the
 /// `#runbook` container; running a step `hx-get`s its command into `#rb-out`. The
-/// host adapter maps `/k/<command>` → `engine.eval`. No client-side state.
+/// host adapter percent-decodes `/k/<command>` before passing it to `engine.eval`.
+/// No client-side state.
 fn render_html(active: &Demo) -> String {
     let tabs = render_tab_strip(active.id);
 
     let mut steps = String::from("<ol class=\"rb-steps\">");
     for step in active.steps {
         let cmd_attr = attr(step.cmd);
+        let cmd_url = utf8_percent_encode(step.cmd, NON_ALPHANUMERIC);
         let cmd_text = html_text(step.cmd);
         let label_attr = attr(step.label);
         steps.push_str(&format!(
             "<li><button class=\"rb-step\" aria-label=\"{label_attr}: {cmd_attr}\" \
-             hx-get=\"/k/{cmd_attr}\" hx-target=\"#rb-out\" hx-swap=\"beforeend\" \
+             hx-get=\"/k/{cmd_url}\" hx-target=\"#rb-out\" hx-swap=\"beforeend\" \
              data-rb-status=\"Ran {label_attr}\">\
              {label}</button> <code class=\"rb-cmd\">{cmd_text}</code>\
              <span class=\"rb-note\">{note}</span></li>",
@@ -1814,7 +1819,10 @@ mod tests {
             html.matches("role=\"tab\"").count(),
             html.matches("aria-controls=\"rb-panel\"").count()
         );
-        assert_eq!(html.matches("tabindex=\"0\" hx-get=\"/k/source").count(), 1);
+        assert_eq!(
+            html.matches("tabindex=\"0\" hx-get=\"/k/source%20").count(),
+            1
+        );
         assert!(html.contains("id=\"rb-tab-basics\" class=\"rb-tab selected\" aria-selected=\"true\" aria-controls=\"rb-panel\" tabindex=\"0\""));
         // The panel is named by a heading, which exists.
         assert!(html.contains("id=\"rb-panel\""));
@@ -1909,7 +1917,7 @@ mod tests {
         };
         let html = render_html(&demo);
         assert!(
-            html.contains("hx-get=\"/k/echo &#39;a&#39; &quot;b&quot;\""),
+            html.contains("hx-get=\"/k/echo%20%27a%27%20%22b%22\""),
             "{html}"
         );
         assert!(
@@ -1923,8 +1931,219 @@ mod tests {
         assert!(!html.contains("echo 'a'"), "{html}");
     }
 
+    #[test]
+    fn command_url_preserves_reserved_and_unicode_characters() {
+        static STEPS: [Step; 1] = [Step {
+            label: "Run",
+            cmd: "source urn:test a=one&two?three#four 'café' \"quoted\"",
+            note: "note",
+        }];
+        let demo = Demo {
+            id: "test",
+            label: "Test",
+            intro: "intro",
+            steps: &STEPS,
+        };
+        let document = scraper::Html::parse_fragment(&render_html(&demo));
+        let selector = scraper::Selector::parse("button.rb-step").unwrap();
+        let href = document
+            .select(&selector)
+            .next()
+            .unwrap()
+            .value()
+            .attr("hx-get")
+            .unwrap();
+        let url = url::Url::parse("https://example.test")
+            .unwrap()
+            .join(href)
+            .unwrap();
+        assert!(url.query().is_none());
+        assert!(url.fragment().is_none());
+        let path = percent_encoding::percent_decode_str(url.path())
+            .decode_utf8()
+            .unwrap();
+        assert_eq!(path, format!("/k/{}", STEPS[0].cmd));
+    }
+
+    #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+    struct OwnedStep {
+        label: String,
+        cmd: String,
+        note: String,
+    }
+
+    #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+    struct OwnedDemo {
+        id: String,
+        label: String,
+        intro: String,
+        steps: Vec<OwnedStep>,
+    }
+
+    #[test]
+    fn every_page_preserves_model_content_across_faces() {
+        let _guard = serial();
+        let step_selector = scraper::Selector::parse("ol.rb-steps > li").unwrap();
+        let button_selector = scraper::Selector::parse("button.rb-step").unwrap();
+        let command_selector = scraper::Selector::parse("code.rb-cmd").unwrap();
+        let note_selector = scraper::Selector::parse("span.rb-note").unwrap();
+        let intro_selector = scraper::Selector::parse("p.rb-intro").unwrap();
+        for demo in DEMOS {
+            let iri = format!("urn:runbook:{}", demo.id);
+            let json: serde_json::Value =
+                serde_json::from_str(&source(&iri, "application/json")).unwrap();
+            assert_eq!(json, serde_json::to_value(demo).unwrap(), "{}", demo.id);
+            let owned: OwnedDemo = serde_json::from_value(json.clone()).unwrap();
+            assert_eq!(serde_json::to_value(owned).unwrap(), json, "{}", demo.id);
+            let text = source(&iri, "text/plain");
+            let html = source(&iri, "text/html");
+            let doc = scraper::Html::parse_fragment(&html);
+            let tabs = scraper::Selector::parse("[role=tablist] > button[role=tab]").unwrap();
+            let tabs: Vec<_> = doc.select(&tabs).collect();
+            assert_eq!(tabs.len(), tab_ids().len());
+            let selected: Vec<_> = tabs
+                .iter()
+                .filter(|tab| tab.value().attr("aria-selected") == Some("true"))
+                .collect();
+            assert_eq!(
+                selected.len(),
+                usize::from(tab_ids().iter().any(|id| id == demo.id))
+            );
+            assert_eq!(
+                tabs.iter()
+                    .filter(|tab| tab.value().attr("tabindex") == Some("0"))
+                    .count(),
+                usize::from(!tabs.is_empty())
+            );
+            assert!(tabs
+                .iter()
+                .all(|tab| tab.value().attr("aria-controls") == Some("rb-panel")));
+            let intro = doc
+                .select(&intro_selector)
+                .next()
+                .unwrap()
+                .text()
+                .collect::<String>();
+            assert_eq!(intro, demo.intro.replace('`', ""), "{}", demo.id);
+            assert!(text.contains(demo.intro), "{}", demo.id);
+            let items: Vec<_> = doc.select(&step_selector).collect();
+            assert_eq!(items.len(), demo.steps.len(), "{}", demo.id);
+            for (i, (item, step)) in items.iter().zip(demo.steps).enumerate() {
+                let button = item.select(&button_selector).next().unwrap();
+                assert_eq!(button.text().collect::<String>(), step.label);
+                assert_eq!(
+                    button.value().attr("aria-label").unwrap(),
+                    format!("{}: {}", step.label, step.cmd)
+                );
+                assert_eq!(
+                    item.select(&command_selector)
+                        .next()
+                        .unwrap()
+                        .text()
+                        .collect::<String>(),
+                    step.cmd
+                );
+                assert_eq!(
+                    item.select(&note_selector)
+                        .next()
+                        .unwrap()
+                        .text()
+                        .collect::<String>(),
+                    step.note.replace('`', "")
+                );
+                assert!(
+                    text.contains(&format!(
+                        "  {}. {}\n     {}\n     — {}\n",
+                        i + 1,
+                        step.label,
+                        step.cmd,
+                        step.note
+                    )),
+                    "{} step {}",
+                    demo.id,
+                    i + 1
+                );
+                let url = url::Url::parse("https://example.test")
+                    .unwrap()
+                    .join(button.value().attr("hx-get").unwrap())
+                    .unwrap();
+                assert!(url.query().is_none() && url.fragment().is_none());
+                assert_eq!(
+                    percent_encoding::percent_decode_str(url.path())
+                        .decode_utf8()
+                        .unwrap(),
+                    format!("/k/{}", step.cmd)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn markup_and_reserved_characters_remain_text_and_commands() {
+        static STEPS: [Step; 1] = [Step {
+            label: "<run & \"go\">",
+            cmd: "echo '&?# café'",
+            note: "<note & `code`>",
+        }];
+        let demo = Demo {
+            id: "special",
+            label: "<title & \"quotes\">",
+            intro: "<intro & `code`>",
+            steps: &STEPS,
+        };
+        let doc = scraper::Html::parse_fragment(&render_html(&demo));
+        let text = |selector: &str| {
+            doc.select(&scraper::Selector::parse(selector).unwrap())
+                .next()
+                .unwrap()
+                .text()
+                .collect::<String>()
+        };
+        assert_eq!(text("h2.rb-heading"), demo.label);
+        assert_eq!(text("p.rb-intro"), "<intro & code>");
+        assert_eq!(text("button.rb-step"), STEPS[0].label);
+        assert_eq!(text("span.rb-note"), "<note & code>");
+        assert_eq!(text("code.rb-cmd"), STEPS[0].cmd);
+        assert!(doc
+            .select(&scraper::Selector::parse("intro, note, run, title").unwrap())
+            .next()
+            .is_none());
+    }
+
+    #[test]
+    fn host_tab_url_preserves_reserved_characters() {
+        let _guard = serial();
+        let id = "audit-tab&?# café";
+        add_tab(id, "<Audit & tab>");
+        let html = render_tab_strip(id);
+        let doc = scraper::Html::parse_fragment(&html);
+        let tabs = scraper::Selector::parse("button[role=tab]").unwrap();
+        let selected: Vec<_> = doc
+            .select(&tabs)
+            .filter(|tab| tab.value().attr("aria-selected") == Some("true"))
+            .collect();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].text().collect::<String>(), "<Audit & tab>");
+        let url = url::Url::parse("https://example.test")
+            .unwrap()
+            .join(selected[0].value().attr("hx-get").unwrap())
+            .unwrap();
+        assert!(url.query().is_none() && url.fragment().is_none());
+        assert_eq!(
+            percent_encoding::percent_decode_str(url.path())
+                .decode_utf8()
+                .unwrap(),
+            format!("/k/source urn:runbook:{id} as=text/html")
+        );
+        hide_tab(id);
+    }
+
     fn button(id: &str) -> String {
-        format!("urn:runbook:{id} as=text/html")
+        utf8_percent_encode(
+            &format!("source urn:runbook:{id} as=text/html"),
+            NON_ALPHANUMERIC,
+        )
+        .to_string()
     }
 
     /// Issue a Source for a page with `as` set to `arg`, returning the raw result.

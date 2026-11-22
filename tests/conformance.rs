@@ -385,12 +385,17 @@ fn declared_outputs_are_the_media_types_served() {
 fn pages_are_live_because_the_strip_is_host_state() {
     let kernel = kernel();
     let iri = page_iri("basics");
-    let button = "urn:runbook:piping as=text/html";
+    let has_piping = |body: &str| {
+        let doc = scraper::Html::parse_fragment(body);
+        let selector = scraper::Selector::parse("button[role=tab]").unwrap();
+        doc.select(&selector)
+            .any(|tab| tab.value().attr("id") == Some("rb-tab-piping"))
+    };
 
     let first = resolve(&kernel, source(&iri));
     assert_eq!(first.expiry, Expiry::Always, "a page is live");
     assert!(first.threads().is_empty(), "and carries no thread");
-    assert!(text(&first).contains(button), "the strip offers piping");
+    assert!(has_piping(&text(&first)), "the strip offers piping");
     assert!(
         !kernel.is_cached(&source(&iri), &Capability::root()),
         "nothing was cached"
@@ -400,7 +405,7 @@ fn pages_are_live_because_the_strip_is_host_state() {
 
     let second = resolve(&kernel, source(&iri));
     assert!(
-        !text(&second).contains(button),
+        !has_piping(&text(&second)),
         "the host withdrew the tab and the next read shows it: a cached page could not"
     );
     // The text face carries the strip too, and is live for the same reason. The
