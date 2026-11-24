@@ -17,14 +17,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use futures::executor::block_on;
-use ikigai_core_for_old_modules::{
+use ikigai_core::{
     ArgRef, Capability, Description, Fallback, Iri, Kernel, MetaRenderer, ReprType, Representation,
     Request, Space, Verb,
 };
 use ikigai_engine::{Action, Engine};
-
-// The engine and the modules the steps name are on core 0.3 until wave 4 (see the manifest).
-mod old_core;
 
 struct JsonRenderer;
 
@@ -33,7 +30,7 @@ impl MetaRenderer for JsonRenderer {
         &self,
         description: &Description,
         _target: &ReprType,
-    ) -> ikigai_core_for_old_modules::Result<Representation> {
+    ) -> ikigai_core::Result<Representation> {
         Ok(Representation::new(
             ReprType::new("application/json"),
             serde_json::to_vec(description).expect("serialize description"),
@@ -57,7 +54,7 @@ fn fresh_dir(name: &str) -> PathBuf {
 /// A native host's kernel for the page, with or without a spill facility.
 fn kernel(spill: bool) -> Kernel {
     let spaces: Vec<Arc<dyn Space>> = vec![
-        Arc::new(old_core::runbook_space()),
+        Arc::new(ikigai_runbook::space()),
         Arc::new(ikigai_rdf::space()),
         Arc::new(ikigai_fs::cacheable_space(fresh_dir("files"))),
     ];
