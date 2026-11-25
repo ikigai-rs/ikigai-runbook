@@ -16,8 +16,8 @@ just *resolving a resource*: no client-side state, no bespoke JavaScript. In the
 same resource renders as text. Same resources, two adapters.
 
 The crate only *renders*. Execution lives in the host: one small adapter maps an `hx-get`'s
-`/k/<command>` to `engine.eval`. This crate emits no `unsafe` code and pulls in only
-`ikigai-core` plus `serde`/`serde_json`.
+`/k/<command>` to `engine.eval`, percent-decoding the command path first. This crate emits no `unsafe` code and pulls in only
+`ikigai-core`, `ikigai-fn`, `percent-encoding`, and `serde`/`serde_json`.
 
 ## Content negotiation
 
