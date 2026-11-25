@@ -19,14 +19,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use futures::executor::block_on;
-use ikigai_core_for_old_modules::{
+use ikigai_core::{
     ArgRef, Capability, Description, Fallback, Iri, Kernel, MetaRenderer, ReprType, Representation,
     Request, Space, Verb,
 };
 use ikigai_engine::{Action, Engine};
-
-// The engine and the modules the steps name are on core 0.3 until wave 4 (see the manifest).
-mod old_core;
 
 struct JsonRenderer;
 
@@ -35,7 +32,7 @@ impl MetaRenderer for JsonRenderer {
         &self,
         description: &Description,
         _target: &ReprType,
-    ) -> ikigai_core_for_old_modules::Result<Representation> {
+    ) -> ikigai_core::Result<Representation> {
         Ok(Representation::new(
             ReprType::new("application/json"),
             serde_json::to_vec(description).expect("serialize description"),
@@ -63,7 +60,7 @@ fn kernel(spaces: Vec<Arc<dyn Space>>) -> Kernel {
 
 fn host_kernel(root: &PathBuf) -> Kernel {
     kernel(vec![
-        Arc::new(old_core::runbook_space()),
+        Arc::new(ikigai_runbook::space()),
         Arc::new(ikigai_reason::space()),
         Arc::new(ikigai_rdf::space()),
         Arc::new(ikigai_sparql::space()),
@@ -78,7 +75,7 @@ fn steps(page: &str) -> Vec<(String, String)> {
         Iri::parse(format!("urn:runbook:{page}")).expect("a valid IRI"),
     )
     .with_arg("as", ArgRef::Inline(b"application/json".to_vec()));
-    let bare = Kernel::new(Arc::new(old_core::runbook_space()));
+    let bare = Kernel::new(Arc::new(ikigai_runbook::space()));
     let page = block_on(bare.issue(request, &Capability::root())).expect("the page");
     let json: serde_json::Value = serde_json::from_slice(&page.bytes).expect("JSON");
     json["steps"]
@@ -420,7 +417,7 @@ fn a_closure_past_a_bound_is_refused_not_truncated() {
 #[test]
 fn without_ikigai_reason_the_steps_do_not_resolve() {
     let engine = Engine::new(kernel(vec![
-        Arc::new(old_core::runbook_space()),
+        Arc::new(ikigai_runbook::space()),
         Arc::new(ikigai_rdf::space()),
     ]));
     let ran = eval(&engine, "source urn:reason:inferred graph=urn:data:typing");

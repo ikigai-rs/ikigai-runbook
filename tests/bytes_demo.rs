@@ -15,14 +15,11 @@
 use std::sync::Arc;
 
 use futures::executor::block_on;
-use ikigai_core_for_old_modules::{
+use ikigai_core::{
     ArgRef, Capability, Description, Fallback, Iri, Kernel, MetaRenderer, ReprType, Representation,
     Request, Space, Verb,
 };
 use ikigai_engine::{Action, Engine};
-
-// The engine and the modules the steps name are on core 0.3 until wave 4 (see the manifest).
-mod old_core;
 
 struct JsonRenderer;
 
@@ -31,7 +28,7 @@ impl MetaRenderer for JsonRenderer {
         &self,
         description: &Description,
         _target: &ReprType,
-    ) -> ikigai_core_for_old_modules::Result<Representation> {
+    ) -> ikigai_core::Result<Representation> {
         Ok(Representation::new(
             ReprType::new("application/json"),
             serde_json::to_vec(description).expect("serialize description"),
@@ -41,7 +38,7 @@ impl MetaRenderer for JsonRenderer {
 
 fn kernel() -> Kernel {
     let spaces: Vec<Arc<dyn Space>> = vec![
-        Arc::new(old_core::runbook_space()),
+        Arc::new(ikigai_runbook::space()),
         Arc::new(ikigai_compress::space()),
         Arc::new(ikigai_sniff::space()),
     ];
@@ -110,7 +107,7 @@ fn every_step_runs_as_its_note_says() {
 #[test]
 fn without_ikigai_compress_the_steps_do_not_resolve() {
     let bare =
-        Kernel::with_meta_renderer(Arc::new(old_core::runbook_space()), Arc::new(JsonRenderer));
+        Kernel::with_meta_renderer(Arc::new(ikigai_runbook::space()), Arc::new(JsonRenderer));
     let out = match block_on(Engine::new(bare).eval_async("source urn:compress:gzip hi")) {
         Action::Output(entry) => entry.result,
         _ => panic!("no output"),

@@ -39,25 +39,16 @@ ikigai-conformance = "0.15.0"
 # 0.2.5 is a TEST floor (ledger #2523): before it a map ran once more on a final newline, so the
 # Thread page's `source urn:data:thread-graphs .. urn:reason:inferred` sent an empty `graph` and was refused.
 # Measured 2026-10-30: engine 0.2.1 fails `an_edit_recomputes_only_what_read_it`; 0.2.5 (resolved at `=0.2.5`) and 0.2.11 pass.
-# Engine 0.4.0 adds Engine::with_scope (ledger #3081) while retaining core 0.3 compatibility.
-ikigai-engine = "0.4.0"
-ikigai-compress = "0.5.0"
-ikigai-sniff = "0.5.0"
+# Engine 0.6.0 is the first release built on core 0.4.
+ikigai-engine = "0.6.0"
+ikigai-compress = "0.6.0"
+ikigai-sniff = "0.6.0"
 # The OWL 2 RL demos' steps (`tests/reasoning_demos.rs`), run through the same engine over
 # the modules a host links for them: the reasoner (ledger #2641), `ikigai-rdf`
 # (its non-Turtle faces and `subclass_axioms`, which builds the
 # Selection demo's closure the way the hosts do), `ikigai-sparql` (one query over a closure)
 # and `ikigai-fs` (the file an edit is written to).
-ikigai-reason = "0.5.0"
-ikigai-rdf = "0.5.0"
-ikigai-sparql = "0.5.0"
-ikigai-fs = "0.4.1"
-# TEST ONLY: the seven crates above (engine, compress, sniff, reason, rdf, sparql, fs) stay on
-# their releases built on core 0.3, which keeps core 0.3 in the test build and nowhere else.
-# `ikigai-core-for-old-modules` names that core so `tests/old_core/mod.rs` can drive them in a
-# kernel of their own, with this crate's core 0.4 space behind a bridge: requests, bytes and
-# descriptions cross, nothing else. The engine tests return to one kernel when ikigai-engine
-# ships on core 0.4 in wave 4 of the core 0.4.0 cascade (epic #3893); this alias, the bridge
-# and `async-trait` go then, with each of the other crates moved to its core 0.4 release.
-ikigai-core-for-old-modules = { package = "ikigai-core", version = "0.3.5" }
-async-trait = "0.1"
+ikigai-reason = "0.6.0"
+ikigai-rdf = "0.6.0"
+ikigai-sparql = "0.6.0"
+ikigai-fs = "0.6.0"
